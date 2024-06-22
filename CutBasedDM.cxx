@@ -2,11 +2,14 @@
 #include "Ecal/Event/EcalVetoResult.h"
 #include "Recon/Event/TriggerResult.h"
 #include "Hcal/Event/HcalVetoResult.h"
+#include "DetDescr/HcalID.h"
+#include "SimCore/Event/SimParticle.h"
 
 // v0: Just a few cuts, establish minimal scenario
 // v1: More strict cuts
 // v2: Fix for N-1 plots, fix NReadoutHits binning
 // v3: Max cell dep is not depth but deposition, non-fid option
+// v4: Adding HCAL PE variables, change to truth level recoil ele momentum info
 
 class CutBasedDM : public framework::Analyzer {
 public:
@@ -18,6 +21,8 @@ public:
   void analyze(const framework::Event& event) final;
   template <typename T, size_t n>
   bool passPreselection(T (&passedCutsArray)[n], bool verbose);
+  std::tuple<int, const ldmx::SimParticle *> getRecoil(
+    const std::map<int, ldmx::SimParticle> &particleMap);
   std::string trigger_collName_;
   std::string trigger_passName_;
   bool fiducial_;
@@ -36,59 +41,68 @@ void CutBasedDM::onProcessStart(){
   getHistoDirectory();
   
   histograms_.create("RecoilX", "", 20, -0.5, 19.5, "RecoilX [mm]", 90, -450.0, 450.0);
-  histograms_.create("AvgLayerHit", "", 20, -0.5, 19.5, "AvgLayerHit", 35, -0.5, 34.5);
-  histograms_.create("DeepestLayerHit", "", 20, -0.5, 19.5, "DeepestLayerHit", 35, -0.5, 34.5);
-  histograms_.create("EcalBackEnergy", "", 20, -0.5, 19.5, "EcalBackEnergy", 100, 0.0, 3000.0);
+  histograms_.create("AvgLayerHit", "", 20, -0.5, 19.5, "Avg hit layer", 35, -0.5, 34.5);
+  histograms_.create("DeepestLayerHit", "", 20, -0.5, 19.5, "Deepest hit layer", 35, -0.5, 34.5);
+  histograms_.create("EcalBackEnergy", "", 20, -0.5, 19.5, "Ecal back energy [MeV]", 100, 0.0, 3000.0);
   histograms_.create("EpAng", "", 20, -0.5, 19.5, "EpAng", 100, 0.0, 90.0);
   histograms_.create("EpSep", "", 20, -0.5, 19.5, "EpSep", 100, 0.0, 1000.0);
-  histograms_.create("FirstNearPhLayerZ", "", 20, -0.5, 19.5, "FirstNearPhLayerZ", 100, 0.0, 800.0);
-  histograms_.create("MaxCellDep", "", 20, -0.5, 19.5, "MaxCellDep", 100, 0.0, 800.0);
-  histograms_.create("NReadoutHits", "", 20, -0.5, 19.5, "NReadoutHits", 150, -0.5, 149.5);
-  histograms_.create("StdLayerHit", "", 20, -0.5, 19.5, "StdLayerHit", 70, -0.5, 34.5);
-  histograms_.create("Straight", "", 20, -0.5, 19.5, "StraightTracks", 15, -0.5, 14.5);
-  histograms_.create("LinRegNew", "", 20, -0.5, 19.5, "LinearRegressionTracks", 15, -0.5, 14.5);
-  histograms_.create("SummedDet", "", 20, -0.5, 19.5, "SummedDet", 100, 0.0, 8000.0);
-  histograms_.create("SummedTightIso", "", 20, -0.5, 19.5, "SummedTightIso", 100, 0.0, 8000.0);
-  histograms_.create("ShowerRMS", "", 20, -0.5, 19.5, "ShowerRMS [mm]", 100, 0.0, 250.0);
-  histograms_.create("XStd", "", 20, -0.5, 19.5, "XStd [mm]", 100, 0.0, 250.0);
-  histograms_.create("YStd", "", 20, -0.5, 19.5, "YStd [mm]", 100, 0.0, 250.0);
+  histograms_.create("FirstNearPhLayerZ", "", 20, -0.5, 19.5, "First near PhLayer Z", 100, 0.0, 800.0);
+  histograms_.create("MaxCellDep", "", 20, -0.5, 19.5, "Max cell deposition [MeV]", 100, 0.0, 800.0);
+  histograms_.create("NReadoutHits", "", 20, -0.5, 19.5, "#Readout hits", 150, -0.5, 149.5);
+  histograms_.create("StdLayerHit", "", 20, -0.5, 19.5, "Std of hit layers", 70, -0.5, 34.5);
+  histograms_.create("Straight", "", 20, -0.5, 19.5, "Straight tracks", 15, -0.5, 14.5);
+  histograms_.create("LinRegNew", "", 20, -0.5, 19.5, "Linear regression tracks", 15, -0.5, 14.5);
+  histograms_.create("SummedDet", "", 20, -0.5, 19.5, "Summed ECAL energy [MeV]", 100, 0.0, 8000.0);
+  histograms_.create("SummedTightIso", "", 20, -0.5, 19.5, "Summed ECAL energy with tight iso [MeV]", 100, 0.0, 8000.0);
+  histograms_.create("ShowerRMS", "", 20, -0.5, 19.5, "Shower RMS [mm]", 100, 0.0, 250.0);
+  histograms_.create("XStd", "", 20, -0.5, 19.5, "Shower RMS_{X} [mm]", 100, 0.0, 250.0);
+  histograms_.create("YStd", "", 20, -0.5, 19.5, "Shower RMS_{Y} [mm]", 100, 0.0, 250.0);
   histograms_.create("RecoilPT", "", 20, -0.5, 19.5, "Recoil p_{T} [MeV]", 800, 0.0, 8000.0);
   histograms_.create("RecoilPZ", "", 20, -0.5, 19.5, "Recoil p_{Z} [MeV]", 800, -10.0, 8010.0);
   histograms_.create("RecoilP", "", 20, -0.5, 19.5, "Recoil p [MeV]", 800, 0.0, 8000.0);
 
-  histograms_.create("Rev_AvgLayerHit", "", 20, -0.5, 19.5, "AvgLayerHit", 35, -0.5, 34.5);
-  histograms_.create("Rev_DeepestLayerHit", "", 20, -0.5, 19.5, "DeepestLayerHit", 35, -0.5, 34.5);
-  histograms_.create("Rev_EcalBackEnergy", "", 20, -0.5, 19.5, "EcalBackEnergy", 100, 0.0, 3000.0);
+  histograms_.create("Hcal_MaxPE", "", 20, -0.5, 19.5, "HCAL max photo-electron hits", 65, -0.5, 64.5);
+  histograms_.create("Hcal_TotalPE", "", 20, -0.5, 19.5, "HCAL total photo-electron hits", 100, -0.5, 200.5);
+  histograms_.create("Hcal_MaxTiming", "", 20, -0.5, 19.5, "HCAL timing of the max PE hit", 35, 0.0, 35.0);
+  histograms_.create("Hcal_MaxSector", "", 20, -0.5, 19.5, "", 5, -0.5, 4.5);
+
+// Reverse direction
+  histograms_.create("Rev_RecoilX", "", 20, -0.5, 19.5, "RecoilX [mm]", 90, -450.0, 450.0);
+  histograms_.create("Rev_AvgLayerHit", "", 20, -0.5, 19.5, "Avg hit layer", 35, -0.5, 34.5);
+  histograms_.create("Rev_DeepestLayerHit", "", 20, -0.5, 19.5, "Deepest hit layer", 35, -0.5, 34.5);
+  histograms_.create("Rev_EcalBackEnergy", "", 20, -0.5, 19.5, "Ecal back energy [MeV]", 100, 0.0, 3000.0);
   histograms_.create("Rev_EpAng", "", 20, -0.5, 19.5, "EpAng", 100, 0.0, 90.0);
   histograms_.create("Rev_EpSep", "", 20, -0.5, 19.5, "EpSep", 100, 0.0, 1000.0);
-  histograms_.create("Rev_FirstNearPhLayerZ", "", 20, -0.5, 19.5, "FirstNearPhLayerZ", 100, 0.0, 800.0);
-  histograms_.create("Rev_MaxCellDep", "", 20, -0.5, 19.5, "MaxCellDep", 100, 0.0, 800.0);
-  histograms_.create("Rev_NReadoutHits", "", 20, -0.5, 19.5, "NReadoutHits", 150, -0.5, 149.5);
-  histograms_.create("Rev_StdLayerHit", "", 20, -0.5, 19.5, "StdLayerHit", 70, -0.5, 34.5);
-  histograms_.create("Rev_Straight", "", 20, -0.5, 19.5, "StraightTracks", 15, -0.5, 14.5);
-  histograms_.create("Rev_LinRegNew", "", 20, -0.5, 19.5, "LinearRegressionTracks", 15, -0.5, 14.5);
-  histograms_.create("Rev_SummedDet", "", 20, -0.5, 19.5, "SummedDet", 100, 0.0, 8000.0);
-  histograms_.create("Rev_SummedTightIso", "", 20, -0.5, 19.5, "SummedTightIso", 100, 0.0, 8000.0);
-  histograms_.create("Rev_ShowerRMS", "", 20, -0.5, 19.5, "ShowerRMS [mm]", 100, 0.0, 250.0);
-  histograms_.create("Rev_XStd", "", 20, -0.5, 19.5, "XStd [mm]", 100, 0.0, 250.0);
-  histograms_.create("Rev_YStd", "", 20, -0.5, 19.5, "YStd [mm]", 100, 0.0, 250.0);
+  histograms_.create("Rev_FirstNearPhLayerZ", "", 20, -0.5, 19.5, "First near PhLayer Z", 100, 0.0, 800.0);
+  histograms_.create("Rev_MaxCellDep", "", 20, -0.5, 19.5, "Max cell deposition [MeV]", 100, 0.0, 800.0);
+  histograms_.create("Rev_NReadoutHits", "", 20, -0.5, 19.5, "#Readout hits", 150, -0.5, 149.5);
+  histograms_.create("Rev_StdLayerHit", "", 20, -0.5, 19.5, "Std of hit layers", 70, -0.5, 34.5);
+  histograms_.create("Rev_Straight", "", 20, -0.5, 19.5, "Straight tracks", 15, -0.5, 14.5);
+  histograms_.create("Rev_LinRegNew", "", 20, -0.5, 19.5, "Linear regression tracks", 15, -0.5, 14.5);
+  histograms_.create("Rev_SummedDet", "", 20, -0.5, 19.5, "Summed ECAL energy [MeV]", 100, 0.0, 8000.0);
+  histograms_.create("Rev_SummedTightIso", "", 20, -0.5, 19.5, "Summed ECAL energy with tight iso [MeV]", 100, 0.0, 8000.0);
+  histograms_.create("Rev_ShowerRMS", "", 20, -0.5, 19.5, "Shower RMS [mm]", 100, 0.0, 250.0);
+  histograms_.create("Rev_XStd", "", 20, -0.5, 19.5, "Shower RMS_{X} [mm]", 100, 0.0, 250.0);
+  histograms_.create("Rev_YStd", "", 20, -0.5, 19.5, "Shower RMS_{Y} [mm]", 100, 0.0, 250.0);
+  histograms_.create("Rev_Hcal_MaxPE", "", 20, -0.5, 19.5, "HCAL max photo-electron hits", 65, -0.5, 64.5);
+  histograms_.create("Rev_Hcal_TotalPE", "", 20, -0.5, 19.5, "HCAL total photo-electron hits", 100, -0.5, 200.5);
+  histograms_.create("Rev_Hcal_MaxTiming", "", 20, -0.5, 19.5, "HCAL timing of the max PE hit", 35, 0.0, 35.0);
+  histograms_.create("Rev_Hcal_MaxSector", "", 20, -0.5, 19.5, "", 5, -0.5, 4.5);
 
-  // histograms_.create("N1_AvgLayerHit", "", 20, -0.5, 19.5, "AvgLayerHit", 35, -0.5, 34.5);
-  // histograms_.create("N1_DeepestLayerHit", "", 20, -0.5, 19.5, "DeepestLayerHit", 35, -0.5, 34.5);
-  histograms_.create("N1_EcalBackEnergy", "", 20, -0.5, 19.5, "EcalBackEnergy", 100, 0.0, 3000.0);
-  // histograms_.create("N1_EpAng", "", 20, -0.5, 19.5, "EpAng", 100, 0.0, 90.0);
-  // histograms_.create("N1_EpSep", "", 20, -0.5, 19.5, "EpSep", 100, 0.0, 1000.0);
-  // histograms_.create("N1_FirstNearPhLayerZ", "", 20, -0.5, 19.5, "FirstNearPhLayerZ", 100, 0.0, 800.0);
-  histograms_.create("N1_MaxCellDep", "", 20, -0.5, 19.5, "MaxCellDep", 100, 0.0, 800.0);
-  histograms_.create("N1_NReadoutHits", "", 20, -0.5, 19.5, "NReadoutHits", 150, -0.5, 149.5);
-  histograms_.create("N1_StdLayerHit", "", 20, -0.5, 19.5, "StdLayerHit", 70, -0.5, 34.5);
-  histograms_.create("N1_Straight", "", 20, -0.5, 19.5, "StraightTracks", 15, -0.5, 14.5);
-  // histograms_.create("N1_LinRegNew", "", 20, -0.5, 19.5, "LinearRegressionTracks", 15, -0.5, 14.5);
-  histograms_.create("N1_SummedDet", "", 20, -0.5, 19.5, "SummedDet", 100, 0.0, 8000.0);
-  histograms_.create("N1_SummedTightIso", "", 20, -0.5, 19.5, "SummedTightIso", 100, 0.0, 8000.0);
-  histograms_.create("N1_ShowerRMS", "", 20, -0.5, 19.5, "ShowerRMS [mm]", 100, 0.0, 250.0);
-  // histograms_.create("N1_XStd", "", 20, -0.5, 19.5, "XStd [mm]", 100, 0.0, 250.0);
-  histograms_.create("N1_YStd", "", 20, -0.5, 19.5, "YStd [mm]", 100, 0.0, 250.0);
+  // N-1 plots
+  histograms_.create("N1_EcalBackEnergy", "", 20, -0.5, 19.5, "Ecal back energy [MeV]", 100, 0.0, 3000.0);
+  histograms_.create("N1_MaxCellDep", "", 20, -0.5, 19.5, "Max cell deposition [MeV]", 100, 0.0, 800.0);
+  histograms_.create("N1_NReadoutHits", "", 20, -0.5, 19.5, "#Readout hits", 150, -0.5, 149.5);
+  histograms_.create("N1_StdLayerHit", "", 20, -0.5, 19.5, "Std of hit layers", 70, -0.5, 34.5);
+  histograms_.create("N1_Straight", "", 20, -0.5, 19.5, "Straight tracks", 15, -0.5, 14.5);
+  histograms_.create("N1_SummedDet", "", 20, -0.5, 19.5, "Summed ECAL energy [MeV]", 100, 0.0, 8000.0);
+  histograms_.create("N1_SummedTightIso", "", 20, -0.5, 19.5, "Summed ECAL energy with tight iso [MeV]", 100, 0.0, 8000.0);
+  histograms_.create("N1_ShowerRMS", "", 20, -0.5, 19.5, "Shower RMS [mm]", 100, 0.0, 250.0);
+  histograms_.create("N1_YStd", "", 20, -0.5, 19.5, "hower RMS_{Y} [mm]", 100, 0.0, 250.0);
+  histograms_.create("N1_Hcal_MaxPE", "", 20, -0.5, 19.5, "HCAL max photo-electron hits", 65, -0.5, 64.5);
+  histograms_.create("N1_Hcal_TotalPE", "", 20, -0.5, 19.5, "HCAL total photo-electron hits", 100, -0.5, 200.5);
+  histograms_.create("N1_Hcal_MaxTiming", "", 20, -0.5, 19.5, "HCAL timing of the max PE hit", 35, 0.0, 35.0);
+  histograms_.create("N1_Hcal_MaxSector", "", 20, -0.5, 19.5, "", 5, -0.5, 4.5);
 
   std::vector<std::string> labels = {
     "All",
@@ -105,6 +119,8 @@ void CutBasedDM::onProcessStart(){
     "N_{straight} < 6",           // 11
     "PASS_{HCalVeto}",            // 12
     ""};
+    
+  if (!fiducial_) labels.at(2) = "Non-fiducial";
 
   std::vector<TH1 *> hists = {
   histograms_.get("AvgLayerHit"),
@@ -126,23 +142,24 @@ void CutBasedDM::onProcessStart(){
   histograms_.get("RecoilX"),
   histograms_.get("RecoilPT"),
   histograms_.get("RecoilPZ"),
+  histograms_.get("RecoilP"),
+  histograms_.get("Hcal_MaxPE"),
+  histograms_.get("Hcal_TotalPE"),
+  histograms_.get("Hcal_MaxTiming"),
+  histograms_.get("Hcal_MaxSector"),
 
-  // histograms_.get("N1_AvgLayerHit"),
-  // histograms_.get("N1_DeepestLayerHit"),
   histograms_.get("N1_EcalBackEnergy"),
-  // histograms_.get("N1_EpAng"),
-  // histograms_.get("N1_EpSep"),
-  // histograms_.get("N1_FirstNearPhLayerZ"),
   histograms_.get("N1_MaxCellDep"),
   histograms_.get("N1_NReadoutHits"),
   histograms_.get("N1_StdLayerHit"),
   histograms_.get("N1_Straight"),
-  // histograms_.get("N1_LinRegNew"),
   histograms_.get("N1_SummedDet"),
   histograms_.get("N1_SummedTightIso"),
   histograms_.get("N1_ShowerRMS"),
-  // histograms_.get("N1_XStd"),
   histograms_.get("N1_YStd"),
+  histograms_.get("N1_Hcal_MaxPE"),
+  histograms_.get("N1_Hcal_MaxTiming"),
+  histograms_.get("N1_Hcal_MaxSector")
   };
 
   for (int ilabel{1}; ilabel < labels.size(); ++ilabel) {
@@ -167,6 +184,8 @@ void CutBasedDM::onProcessStart(){
     "Triggerred",            // 1
     ""};
 
+  if (!fiducial_) labels_Rev.at(11) = "Non-fiducial";
+
   std::vector<TH1 *> hists_Rev = {
     histograms_.get("Rev_AvgLayerHit"),
     histograms_.get("Rev_DeepestLayerHit"),
@@ -183,15 +202,38 @@ void CutBasedDM::onProcessStart(){
     histograms_.get("Rev_SummedTightIso"),
     histograms_.get("Rev_ShowerRMS"),
     histograms_.get("Rev_XStd"),
-    histograms_.get("Rev_YStd")
+    histograms_.get("Rev_YStd"),
+    histograms_.get("Rev_Hcal_MaxPE"),
+    histograms_.get("Rev_Hcal_MaxTiming"),
+    histograms_.get("Rev_Hcal_MaxSector")
   };
 
-    for (int ilabel{1}; ilabel < labels_Rev.size(); ++ilabel) {
+  for (int ilabel{1}; ilabel < labels_Rev.size(); ++ilabel) {
     for (auto &hist : hists_Rev) {
       hist->GetXaxis()->SetBinLabel(ilabel, labels_Rev[ilabel - 1].c_str());
     }
   }
 
+  std::vector<TH1 *> hists_HCALsector = {
+    histograms_.get("Hcal_MaxSector"),
+    histograms_.get("N1_Hcal_MaxSector"),
+    histograms_.get("Rev_Hcal_MaxSector")
+  };
+
+  // enum HcalSection { BACK = 0, TOP = 1, BOTTOM = 2, RIGHT = 3, LEFT = 4 };
+    std::vector<std::string> labels_HCALsector = {
+    "HCAL BACK",         // 1
+    "HCAL TOP",          // 2
+    "HCAL BOTTOM",       // 3
+    "HCAL RIGHT",        // 4
+    "HCAL LEFT",         // 5
+    ""};
+
+  for (int ilabel{1}; ilabel < labels_HCALsector.size(); ++ilabel) {
+    for (auto &hist : hists_HCALsector) {
+      hist->GetYaxis()->SetBinLabel(ilabel, labels_HCALsector[ilabel - 1].c_str());
+    }
+  }
 }
 
 void CutBasedDM::analyze(const framework::Event& event) {
@@ -199,20 +241,76 @@ void CutBasedDM::analyze(const framework::Event& event) {
   auto vetoNew{event.getObject<ldmx::EcalVetoResult>("EcalVetoNew","")};
   auto trigResult{event.getObject<ldmx::TriggerResult>(trigger_collName_, trigger_passName_)};
   auto hcalVeto{event.getObject<ldmx::HcalVetoResult>("HcalVeto","")};
+  auto hcalRecHits{event.getCollection<ldmx::HcalHit>("HcalRecHits", "")};
 
+  // Recoil ele calc
   float pT2{-9999.};
   float pT{-9999.};
   float pZ{-9999.};
   float totMom2{-9999.};
   float totMom{-9999.};
 
-  pT2 = vetoNew.getRecoilMomentum()[0]*vetoNew.getRecoilMomentum()[0] + vetoNew.getRecoilMomentum()[1]*vetoNew.getRecoilMomentum()[1];
+  // Take recoil momentum from ECAL SP
+  // pT2 = vetoNew.getRecoilMomentum()[0]*vetoNew.getRecoilMomentum()[0] + vetoNew.getRecoilMomentum()[1]*vetoNew.getRecoilMomentum()[1];
+  // pZ =  vetoNew.getRecoilMomentum()[2];
+
+  // Take recoil momentum from SIM particles
+  auto particleMap{event.getMap<int, ldmx::SimParticle>("SimParticles")};
+  auto [recoilTrackID, recoilElectron] = CutBasedDM::getRecoil(particleMap);
+  pT2 =  recoilElectron->getMomentum()[0]* recoilElectron->getMomentum()[0] +  recoilElectron->getMomentum()[1]* recoilElectron->getMomentum()[1];
+  pZ = recoilElectron->getMomentum()[2];
+
   if (pT2 >= 0) pT = sqrt(pT2);
-  pZ =  vetoNew.getRecoilMomentum()[2];
   if (pZ < 0 && pZ != -9999) pZ = -5;
   if (pT2 >= 0) totMom2 = pT2 + pZ*pZ;
   if (totMom2 >= 0) totMom = sqrt(totMom2);
+
+  // HCAL veto calc
+  float hcalMaxPE{-9999};
+  float hcalMaxTiming{-9999};
+  int hcalMaxSector{-1};
+  float hcalTotalPe{0};
   
+  ldmx::HcalHit defaultMaxHit_;
+  defaultMaxHit_.Clear();
+  defaultMaxHit_.setPE(-9999);
+  defaultMaxHit_.setMinPE(-9999);
+  defaultMaxHit_.setSection(-9999);
+  defaultMaxHit_.setLayer(-9999);
+  defaultMaxHit_.setStrip(-9999);
+  defaultMaxHit_.setEnd(-999);
+  defaultMaxHit_.setTimeDiff(-9999);
+  defaultMaxHit_.setToaPos(-9999);
+  defaultMaxHit_.setToaNeg(-9999);
+  defaultMaxHit_.setAmplitudePos(-9999);
+  defaultMaxHit_.setAmplitudeNeg(-9999);
+  const ldmx::HcalHit *maxPEHit{&defaultMaxHit_};
+
+  // Loop on the HCAL hits
+  for (const auto hcalHit : hcalRecHits) {
+    float maxTime_{50.};
+    if (hcalHit.getTime() >= maxTime_) {
+      continue;
+    }
+
+    float backMinPE_{1.};
+    ldmx::HcalID id(hcalHit.getID());
+    if ((id.section() == ldmx::HcalID::BACK) &&  (hcalHit.getMinPE() < backMinPE_)) {
+      continue;
+    }
+
+    float pe = hcalHit.getPE();
+    hcalTotalPe += pe;
+
+    if (hcalMaxPE < pe) {
+      hcalMaxPE = pe;
+      maxPEHit = &hcalHit;
+    }
+  }
+
+  ldmx::HcalID maxPeId(maxPEHit->getID());
+  hcalMaxTiming = maxPEHit->getTime();
+  hcalMaxSector =  maxPeId.section();
 
   // CutFlow here
   bool passedCutsArray[12];
@@ -251,6 +349,10 @@ void CutBasedDM::analyze(const framework::Event& event) {
   histograms_.fill("RecoilPT", 0. ,pT );
   histograms_.fill("RecoilPZ", 0. , pZ );
   histograms_.fill("RecoilP", 0. , totMom );
+  histograms_.fill("Hcal_MaxPE", 0. , hcalMaxPE );
+  histograms_.fill("Hcal_TotalPE", 0. , hcalTotalPe );
+  histograms_.fill("Hcal_MaxTiming", 0. , hcalMaxTiming );
+  histograms_.fill("Hcal_MaxSector", 0. , hcalMaxSector );
   
   for (size_t i=0;i<sizeof(passedCutsArray);i++) {
     bool allCutsPassedSoFar = true;
@@ -275,6 +377,7 @@ void CutBasedDM::analyze(const framework::Event& event) {
       //   << " getStdLayerHit = " << vetoNew.getStdLayerHit()
       //   << " getNStraightTracks = " << vetoNew.getNStraightTracks()
       //   << " hcalVeto = " << hcalVeto.passesVeto()
+      // std::cout << "hcalMaxPE = " <<  hcalMaxPE << " hcal total" << hcalTotalPe <<  " maxTime = " << hcalMaxTiming << " where = " << hcalMaxSector
       // << std::endl;
 
       histograms_.fill("RecoilX", i+1 , vetoNew.getRecoilX() );
@@ -297,6 +400,10 @@ void CutBasedDM::analyze(const framework::Event& event) {
       histograms_.fill("RecoilPT", i+1 ,pT );
       histograms_.fill("RecoilPZ", i+1 , pZ );
       histograms_.fill("RecoilP", i+1 , totMom );
+      histograms_.fill("Hcal_MaxPE", i+1. , hcalMaxPE );
+      histograms_.fill("Hcal_TotalPE", i+1. , hcalTotalPe );
+      histograms_.fill("Hcal_MaxTiming", i+1. , hcalMaxTiming );
+      histograms_.fill("Hcal_MaxSector", i+1. , hcalMaxSector );
     }
   }
 
@@ -318,6 +425,10 @@ histograms_.fill("Rev_SummedTightIso", 0. , vetoNew.getSummedTightIso() );
 histograms_.fill("Rev_ShowerRMS", 0. , vetoNew.getShowerRMS() );
 histograms_.fill("Rev_XStd", 0. , vetoNew.getXStd() );
 histograms_.fill("Rev_YStd", 0. , vetoNew.getYStd() );
+histograms_.fill("Rev_Hcal_MaxPE", 0. , hcalMaxPE );
+histograms_.fill("Rev_Hcal_TotalPE", 0. , hcalTotalPe );
+histograms_.fill("Rev_Hcal_MaxTiming", 0. , hcalMaxTiming );
+histograms_.fill("Rev_Hcal_MaxSector", 0. , hcalMaxSector );
 
 bool passedCutsArrayReverse[12];
 std::reverse_copy(std::begin(passedCutsArray), std::end(passedCutsArray), std::begin(passedCutsArrayReverse));
@@ -345,6 +456,10 @@ for (size_t i=0;i<sizeof(passedCutsArrayReverse);i++) {
     histograms_.fill("Rev_ShowerRMS", i+1 , vetoNew.getShowerRMS() );
     histograms_.fill("Rev_XStd", i+1 , vetoNew.getXStd() );
     histograms_.fill("Rev_YStd", i+1 , vetoNew.getYStd() );
+    histograms_.fill("Rev_Hcal_MaxPE", i+1. , hcalMaxPE );
+    histograms_.fill("Rev_Hcal_TotalPE", i+1. , hcalTotalPe );
+    histograms_.fill("Rev_Hcal_MaxTiming", i+1. , hcalMaxTiming );
+    histograms_.fill("Rev_Hcal_MaxSector", i+1. , hcalMaxSector );
   }
 }
   
@@ -374,6 +489,13 @@ for (size_t i=0;i<sizeof(passedCutsArrayReverse);i++) {
     if (i==8) histograms_.fill("N1_MaxCellDep", i+1 , vetoNew.getMaxCellDep() );
     if (i==9) histograms_.fill("N1_StdLayerHit", i+1 , vetoNew.getStdLayerHit() );
     if (i==10) histograms_.fill("N1_Straight", i+1 , vetoNew.getNStraightTracks() );
+    if (i==11) {
+      histograms_.fill("N1_Hcal_MaxPE", i+1. , hcalMaxPE );
+      histograms_.fill("N1_Hcal_TotalPE", i+1. , hcalTotalPe );
+      histograms_.fill("N1_Hcal_MaxTiming", i+1. , hcalMaxTiming );
+      histograms_.fill("N1_Hcal_MaxSector", i+1. , hcalMaxSector );
+    }
+    
     // histograms_.fill("N1_LinRegNew", i+1 , vetoNew.getNLinRegTracks() );
     // histograms_.fill("N1_EpAng", i+1 , vetoNew.getEPAng() );
     // histograms_.fill("N1_EpSep", i+1 , vetoNew.getEPSep() );
@@ -414,4 +536,22 @@ bool CutBasedDM::passPreselection(T (&passedCutsArray)[n], bool verbose) {
   }
 }
 
+std::tuple<int, const ldmx::SimParticle *> CutBasedDM::getRecoil(
+    const std::map<int, ldmx::SimParticle> &particleMap) {
+  // The recoil electron is "produced" in the dark brem geneartion
+  for (const auto &[trackID, particle] : particleMap) {
+    if (particle.getPdgID() == 11 and
+        particle.getProcessType() ==
+            ldmx::SimParticle::ProcessType::eDarkBrem) {
+      return {trackID, &particle};
+    }
+  }
+  // only get here if recoil electron was not "produced" by dark brem
+  //   in this case (bkgd), we interpret the primary electron as also the recoil
+  //   electron
+  return {1, &(particleMap.at(1))};
+}
+
 DECLARE_ANALYZER(CutBasedDM);
+
+
