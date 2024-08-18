@@ -30,6 +30,9 @@ CutBasedAna.fiducial = True
 ecalVeto = vetos.EcalVetoProcessor()
 ecalVeto.collection_name= 'EcalVetoNew'
 
-CutBasedAna.trigger_name = "Trigger"
+CutBasedAna.trigger_name = "DefaultTrigger3GeV"
 CutBasedAna.trigger_pass = "sim"
-p.sequence = [ecalVeto,CutBasedAna]
+hcalVeto   =hcal.HcalVetoProcessor('hcalVeto')
+p.sequence = [ecalVeto,hcalVeto,CutBasedAna]
+
+

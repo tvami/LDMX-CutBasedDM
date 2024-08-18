@@ -19,11 +19,13 @@ p.run = 2
 p.inputFiles  = [fileName]
 #p.inputFiles = [f'signalIn.root']
 #p.inputFiles = [f'ecalPnIn.root']
-p.histogramFile = fileName[:-5] + "_histo_v3_nonfid.root"
+#p.histogramFile = fileName[:-5] + "_histo_v4_nonfid.root"
+p.histogramFile = "/sdf/home/t/tamasvami/CutBasedDM/"  + str(fileName.split('/')[-2]) + "/" + str(fileName.split('/')[-1][:-5]) + "_histo_v6.root"
 #p.termLogLevel = 0
 
-CutBasedAna = ldmxcfg.Analyzer.from_file('/home/vamitamas/CutBasedDM/ldmx-sw/CutBasedDM.cxx')
-CutBasedAna.fiducial = False
+CutBasedAna = ldmxcfg.Analyzer.from_file('/sdf/home/t/tamasvami/CutBasedDM/ldmx-sw/CutBasedDM.cxx')
+#CutBasedAna.fiducial = False
+CutBasedAna.fiducial = True
 
 ecalVeto = vetos.EcalVetoProcessor()
 ecalVeto.collection_name= 'EcalVetoNew'
@@ -32,6 +34,5 @@ CutBasedAna.trigger_name = "TriggerSums20Layers"
 CutBasedAna.trigger_pass = "signal"
 hcalVeto   =hcal.HcalVetoProcessor('hcalVeto')
 p.sequence = [ecalVeto,hcalVeto,CutBasedAna]
-
 
 
