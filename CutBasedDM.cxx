@@ -15,6 +15,7 @@
 // v4: Adding HCAL PE variables, change to truth level recoil ele momentum info
 // v5: Adding Target SP recoil ele variables, trigger eff, Target SP angles
 // v6: Add alternative cutflow where fiducial is before trigger, add BDT score (Gabrielle), BDT vs PE
+// v7: Update to latest LDMX-SW, redo trigger consitently
 
 class CutBasedDM : public framework::Analyzer {
 public:
@@ -54,7 +55,7 @@ void CutBasedDM::onProcessStart(){
   histograms_.create("EcalBackEnergy", "", 20, -0.5, 19.5, "Ecal back energy [MeV]", 100, 0.0, 3000.0);
   histograms_.create("EpAng", "", 20, -0.5, 19.5, "EpAng", 100, 0.0, 90.0);
   histograms_.create("EpSep", "", 20, -0.5, 19.5, "EpSep", 100, 0.0, 1000.0);
-  histograms_.create("FirstNearPhLayerZ", "", 20, -0.5, 19.5, "First near PhLayer Z", 100, 0.0, 800.0);
+  histograms_.create("FirstNearPhLayer", "", 20, -0.5, 19.5, "First near PhLayer Z", 35, -0.5, 34.5);
   histograms_.create("MaxCellDep", "", 20, -0.5, 19.5, "Max cell deposition [MeV]", 100, 0.0, 800.0);
   histograms_.create("NReadoutHits", "", 20, -0.5, 19.5, "#Readout hits", 150, -0.5, 149.5);
   histograms_.create("StdLayerHit", "", 20, -0.5, 19.5, "Std of hit layers", 70, -0.5, 34.5);
@@ -98,7 +99,7 @@ void CutBasedDM::onProcessStart(){
   histograms_.create("Rev_EcalBackEnergy", "", 20, -0.5, 19.5, "Ecal back energy [MeV]", 100, 0.0, 3000.0);
   histograms_.create("Rev_EpAng", "", 20, -0.5, 19.5, "EpAng", 100, 0.0, 90.0);
   histograms_.create("Rev_EpSep", "", 20, -0.5, 19.5, "EpSep", 100, 0.0, 1000.0);
-  histograms_.create("Rev_FirstNearPhLayerZ", "", 20, -0.5, 19.5, "First near PhLayer Z", 100, 0.0, 800.0);
+  histograms_.create("Rev_FirstNearPhLayer", "", 20, -0.5, 19.5, "First near PhLayer Z", 35, -0.5, 34.5);
   histograms_.create("Rev_MaxCellDep", "", 20, -0.5, 19.5, "Max cell deposition [MeV]", 100, 0.0, 800.0);
   histograms_.create("Rev_NReadoutHits", "", 20, -0.5, 19.5, "#Readout hits", 150, -0.5, 149.5);
   histograms_.create("Rev_StdLayerHit", "", 20, -0.5, 19.5, "Std of hit layers", 70, -0.5, 34.5);
@@ -123,7 +124,7 @@ void CutBasedDM::onProcessStart(){
   histograms_.create("N1_SummedDet", "", 20, -0.5, 19.5, "Summed ECAL energy [MeV]", 100, 0.0, 8000.0);
   histograms_.create("N1_SummedTightIso", "", 20, -0.5, 19.5, "Summed ECAL energy with tight iso [MeV]", 100, 0.0, 8000.0);
   histograms_.create("N1_ShowerRMS", "", 20, -0.5, 19.5, "Shower RMS [mm]", 100, 0.0, 250.0);
-  histograms_.create("N1_YStd", "", 20, -0.5, 19.5, "hower RMS_{Y} [mm]", 100, 0.0, 250.0);
+  histograms_.create("N1_YStd", "", 20, -0.5, 19.5, "Shower RMS_{Y} [mm]", 100, 0.0, 250.0);
   histograms_.create("N1_Hcal_MaxPE", "", 20, -0.5, 19.5, "HCAL max photo-electron hits", 65, -0.5, 64.5);
   histograms_.create("N1_Hcal_TotalPE", "", 20, -0.5, 19.5, "HCAL total photo-electron hits", 100, -0.5, 200.5);
   histograms_.create("N1_Hcal_MaxTiming", "", 20, -0.5, 19.5, "HCAL timing of the max PE hit", 35, 0.0, 35.0);
@@ -155,7 +156,7 @@ void CutBasedDM::onProcessStart(){
   histograms_.get("EcalBackEnergy"),
   histograms_.get("EpAng"),
   histograms_.get("EpSep"),
-  histograms_.get("FirstNearPhLayerZ"),
+  histograms_.get("FirstNearPhLayer"),
   histograms_.get("MaxCellDep"),
   histograms_.get("NReadoutHits"),
   histograms_.get("StdLayerHit"),
@@ -228,7 +229,7 @@ void CutBasedDM::onProcessStart(){
     histograms_.get("Rev_EcalBackEnergy"),
     histograms_.get("Rev_EpAng"),
     histograms_.get("Rev_EpSep"),
-    histograms_.get("Rev_FirstNearPhLayerZ"),
+    histograms_.get("Rev_FirstNearPhLayer"),
     histograms_.get("Rev_MaxCellDep"),
     histograms_.get("Rev_NReadoutHits"),
     histograms_.get("Rev_StdLayerHit"),
@@ -428,7 +429,7 @@ void CutBasedDM::analyze(const framework::Event& event) {
   histograms_.fill("EcalBackEnergy", 0. , vetoNew.getEcalBackEnergy() );
   histograms_.fill("EpAng", 0. , vetoNew.getEPAng() );
   histograms_.fill("EpSep", 0. , vetoNew.getEPSep() );
-  histograms_.fill("FirstNearPhLayerZ", 0. , vetoNew.getFirstNearPhLayer() );
+  histograms_.fill("FirstNearPhLayer", 0. , vetoNew.getFirstNearPhLayer() );
   histograms_.fill("MaxCellDep", 0. , vetoNew.getMaxCellDep() );
   histograms_.fill("NReadoutHits", 0. , vetoNew.getNReadoutHits() );
   histograms_.fill("StdLayerHit", 0. , vetoNew.getStdLayerHit() );
@@ -490,7 +491,7 @@ void CutBasedDM::analyze(const framework::Event& event) {
       histograms_.fill("EcalBackEnergy", i+1 , vetoNew.getEcalBackEnergy() );
       histograms_.fill("EpAng", i+1 , vetoNew.getEPAng() );
       histograms_.fill("EpSep", i+1 , vetoNew.getEPSep() );
-      histograms_.fill("FirstNearPhLayerZ", i+1 , vetoNew.getFirstNearPhLayer() );
+      histograms_.fill("FirstNearPhLayer", i+1 , vetoNew.getFirstNearPhLayer() );
       histograms_.fill("MaxCellDep", i+1 , vetoNew.getMaxCellDep() );
       histograms_.fill("NReadoutHits", i+1 , vetoNew.getNReadoutHits() );
       histograms_.fill("StdLayerHit", i+1 , vetoNew.getStdLayerHit() );
@@ -581,7 +582,7 @@ histograms_.fill("Rev_DeepestLayerHit", 0. , vetoNew.getDeepestLayerHit() );
 histograms_.fill("Rev_EcalBackEnergy", 0. , vetoNew.getEcalBackEnergy() );
 histograms_.fill("Rev_EpAng", 0. , vetoNew.getEPAng() );
 histograms_.fill("Rev_EpSep", 0. , vetoNew.getEPSep() );
-histograms_.fill("Rev_FirstNearPhLayerZ", 0. , vetoNew.getFirstNearPhLayer() );
+histograms_.fill("Rev_FirstNearPhLayer", 0. , vetoNew.getFirstNearPhLayer() );
 histograms_.fill("Rev_MaxCellDep", 0. , vetoNew.getMaxCellDep() );
 histograms_.fill("Rev_NReadoutHits", 0. , vetoNew.getNReadoutHits() );
 histograms_.fill("Rev_StdLayerHit", 0. , vetoNew.getStdLayerHit() );
@@ -612,7 +613,7 @@ for (size_t i=0;i<sizeof(passedCutsArrayReverse);i++) {
     histograms_.fill("Rev_EcalBackEnergy", i+1 , vetoNew.getEcalBackEnergy() );
     histograms_.fill("Rev_EpAng", i+1 , vetoNew.getEPAng() );
     histograms_.fill("Rev_EpSep", i+1 , vetoNew.getEPSep() );
-    histograms_.fill("Rev_FirstNearPhLayerZ", i+1 , vetoNew.getFirstNearPhLayer() );
+    histograms_.fill("Rev_FirstNearPhLayer", i+1 , vetoNew.getFirstNearPhLayer() );
     histograms_.fill("Rev_MaxCellDep", i+1 , vetoNew.getMaxCellDep() );
     histograms_.fill("Rev_NReadoutHits", i+1 , vetoNew.getNReadoutHits() );
     histograms_.fill("Rev_StdLayerHit", i+1 , vetoNew.getStdLayerHit() );
@@ -666,7 +667,7 @@ for (size_t i=0;i<sizeof(passedCutsArrayReverse);i++) {
     // histograms_.fill("N1_LinRegNew", i+1 , vetoNew.getNLinRegTracks() );
     // histograms_.fill("N1_EpAng", i+1 , vetoNew.getEPAng() );
     // histograms_.fill("N1_EpSep", i+1 , vetoNew.getEPSep() );
-    // histograms_.fill("N1_FirstNearPhLayerZ", i+1 , vetoNew.getFirstNearPhLayer() );
+    // histograms_.fill("N1_FirstNearPhLayer", i+1 , vetoNew.getFirstNearPhLayer() );
     // histograms_.fill("N1_XStd", i+1 , vetoNew.getXStd() );
     // histograms_.fill("N1_AvgLayerHit", i+1 , vetoNew.getAvgLayerHit() );
     // histograms_.fill("N1_DeepestLayerHit", i+1 , vetoNew.getDeepestLayerHit() );
