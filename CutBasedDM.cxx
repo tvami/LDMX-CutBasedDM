@@ -305,7 +305,7 @@ void CutBasedDM::analyze(const framework::Event& event) {
   // std::cout << " ---------------------------------------------" << std::endl;
   auto vetoNew{event.getObject<ldmx::EcalVetoResult>("EcalVetoNew","")};
   auto trigResult{event.getObject<ldmx::TriggerResult>(trigger_collName_, trigger_passName_)};
-  auto hcalVeto{event.getObject<ldmx::HcalVetoResult>("HcalVeto","")};
+  auto hcalVeto{event.getObject<ldmx::HcalVetoResult>("HcalVeto","cutbased")};
   auto hcalRecHits{event.getCollection<ldmx::HcalHit>("HcalRecHits", "")};
   auto targetSpHits{event.getCollection<ldmx::SimTrackerHit>("TargetScoringPlaneHits")};
 
