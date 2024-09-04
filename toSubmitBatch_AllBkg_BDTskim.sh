@@ -1,0 +1,1 @@
+python3 submit_skim.py -i /fs/ddn/sdf/group/ldmx/data/user_production/user.tamasvami/SegMip_BDT_Skim/v3.3.3_ecalPN_tskim-bdtskim -py /sdf/home/t/tamasvami/CutBasedDM/ldmx-sw/cutBasedDM_cfg.py -s "sim"

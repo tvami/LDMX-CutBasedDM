@@ -43,24 +43,18 @@ def main():
 
     #WRITE JOB FILES AND SUBMIT
     jobs = len(indirs)
-    chunk_size = 50
-    for job in range(0,jobs,chunk_size):
-        chunk = indirs[job:job + chunk_size]
-        input_chunk = ' '.join(chunk)
-        specific_command = command + '%s' % (input_chunk)
-        #print(specific_command)
-        #if args.suffix:
-        #    specific_command += " -s " + args.suffix
+    for job in range(0,jobs):
+        specific_command = command + '%s' % (indirs[job])
+        if args.suffix:
+            specific_command += " -s " + args.suffix
         with open('%s/slurm_submit_%d.job' % (jobdir,job), 'w') as f:
             f.write('#!/bin/bash\n\n')
             f.write('#SBATCH --nodes=1 --ntasks-per-node=1\n')
             f.write('#SBATCH --error=%s/slurm-%%A_%%a.err\n' % logdir)
             f.write('#SBATCH --output=%s/slurm-%%A_%%a.out\n' % logdir)
-            f.write('#SBATCH --time=22:05:00\n\n')                                                      
-            f.write('#SBATCH --account LDMX:ldmx-prod\n\n')
+            f.write('#SBATCH --time=00:03:00\n\n')                                                      
             #f.write('#SBATCH --mail-type=END,FAIL\n')
-            f.write('#SBATCH --mail-type=FAIL\n')
-            f.write('#SBATCH --mail-user=tamasvami@ucsb.edu\n')
+            #f.write('#SBATCH --mail-user=tamasvami@ucsb.edu\n')
             f.write('cd $SLURM_SUBMIT_DIR\n\n')
             f.write('/bin/hostname\n\n')
             f.write('%s\n' % specific_command)
