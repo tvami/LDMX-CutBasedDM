@@ -7,6 +7,9 @@
 #include "DetDescr/SimSpecialID.h"
 #include "SimCore/Event/SimTrackerHit.h"
 #include "Tracking/include/Tracking/Event/Track.h"
+#include "Recon/Event/FiducialFlag.h"
+
+
 #include <math.h>
 
 // v0: Just a few cuts, establish minimal scenario
@@ -24,6 +27,7 @@
 // v12: Have BDT cutflow start with trigger
 // v13: Add new cutflow with lin-reg, together with HCAL as start
 // v14: Have 34 layers, add tracking plots
+// v15: Acceptance plot, and add Acceptance to all cutflows
 
 class CutBasedDM : public framework::Analyzer {
 public:
@@ -31,6 +35,9 @@ public:
   : framework::Analyzer(name, p) {}
   ~CutBasedDM() = default;
   void configure(framework::config::Parameters &ps);
+  void setHistLabels(const std::string &name, const std::vector<std::string> &labels);
+  void setHistLabelsY(const std::string &name, const std::vector<std::string> &labels);
+
   void onProcessStart();
   void analyze(const framework::Event& event) final;
   template <typename T, size_t n>
@@ -39,27 +46,42 @@ public:
     const std::map<int, ldmx::SimParticle> &particleMap);
   std::string trigger_collName_;
   std::string trigger_passName_;
-  std::string tagger_track_collection_;
-  std::string recoil_track_collection_;
-  bool fiducial_;
-  bool acts_tracking_;
+  // std::string tagger_track_collection_;
+  // std::string recoil_track_collection_;
+  bool fiducial_analysis_;
+  bool signal_;
 };
 
 
 void CutBasedDM::configure(framework::config::Parameters &ps) {
   trigger_collName_ = ps.getParameter<std::string>("trigger_name");
   trigger_passName_ = ps.getParameter<std::string>("trigger_pass");
-  fiducial_ = ps.getParameter<bool>("fiducial");
-  acts_tracking_ = ps.getParameter<bool>("acts_tracking", false);
-  tagger_track_collection_ = ps.getParameter<std::string>("tagger_track_collection", "TaggerTracks");
-  recoil_track_collection_ = ps.getParameter<std::string>("recoil_track_collection", "RecoilTracks");
-  
+  fiducial_analysis_ = ps.getParameter<bool>("fiducial_analysis");
+  signal_ = ps.getParameter<bool>("signal", true);
+
   return;
+}
+
+void CutBasedDM::setHistLabels(const std::string &name,
+  const std::vector<std::string> &labels) {
+    auto histo{histograms_.get(name)};
+    for (std::size_t ibin{1}; ibin <= labels.size(); ibin++) {
+      histo->GetXaxis()->SetBinLabel(ibin, labels[ibin - 1].c_str());
+    }
+}
+
+void CutBasedDM::setHistLabelsY(const std::string &name,
+  const std::vector<std::string> &labels) {
+    auto histo{histograms_.get(name)};
+    for (std::size_t ibin{1}; ibin <= labels.size(); ibin++) {
+      histo->GetYaxis()->SetBinLabel(ibin, labels[ibin - 1].c_str());
+    }
 }
 
 void CutBasedDM::onProcessStart(){
   getHistoDirectory();
-
+  
+  histograms_.create("Acceptance", "", 6, -0.5, 5.5, "", 90, -450.0, 450.0);
   histograms_.create("TrigEffVsMissingE", "Triggered?", 2, -0.5, 1.5, "Missing ECAL energy [MeV]", 100, 0.0, 10000.0);
   histograms_.create("TrigEffVsRecoilPTAtTarget", "Triggered?", 2, -0.5, 1.5, "Recoil p_{T} @Target [MeV]", 800, 0.0, 10000.0);
   histograms_.create("RecoilX", "", 20, -0.5, 19.5, "RecoilX @Ecal [mm]", 90, -450.0, 450.0);
@@ -103,24 +125,24 @@ void CutBasedDM::onProcessStart(){
   histograms_.create("BDTDiscrVsHcalPE_PostS", "HCAL PE", 500, -0.5, 500.5, "BDT discriminating score", 100, 0.0, 1.0);
   histograms_.create("BDTDiscrLogVsHcalPE_PostS", "HCAL PE", 500, -0.5, 500.5, "-log(1-BDT discriminating score)", 100, 0.0, 5.0);
 
-  histograms_.create("AltCutFlow_RecoilX", "", 20, -0.5, 19.5, "RecoilX @Ecal [mm]", 90, -450.0, 450.0);
-  histograms_.create("StdCutFlow_RecoilX", "", 20, -0.5, 19.5, "RecoilX @Ecal [mm]", 90, -450.0, 450.0);
-  histograms_.create("BDTCutFlow_RecoilX", "", 20, -0.5, 19.5, "RecoilX @Ecal [mm]", 90, -450.0, 450.0);
-  histograms_.create("LinRegCutFlow_RecoilX", "", 20, -0.5, 19.5, "RecoilX @Ecal [mm]", 90, -450.0, 450.0);
-  histograms_.create("LinRegCutFlowHcal_RecoilX", "", 20, -0.5, 19.5, "RecoilX @Ecal [mm]", 90, -450.0, 450.0);
+  histograms_.create("AltCutFlow_RecoilX", "", 18, -0.5, 17.5, "RecoilX @Ecal [mm]", 90, -450.0, 450.0);
+  histograms_.create("StdCutFlow_RecoilX", "", 18, -0.5, 17.5, "RecoilX @Ecal [mm]", 90, -450.0, 450.0);
+  histograms_.create("BDTCutFlow_RecoilX", "", 18, -0.5, 17.5, "RecoilX @Ecal [mm]", 90, -450.0, 450.0);
+  // histograms_.create("LinRegCutFlow_RecoilX", "",  18, -0.5, 17.5, "RecoilX @Ecal [mm]", 90, -450.0, 450.0);
+  // histograms_.create("LinRegCutFlowHcal_RecoilX", "",  18, -0.5, 17.5, "RecoilX @Ecal [mm]", 90, -450.0, 450.0);
  
-  histograms_.create("TrackingCutFlow_RecoilX", "", 20, -0.5, 19.5, "RecoilX @Ecal [mm]", 90, -450.0, 450.0);
-  histograms_.create("Tracking_TaggerP", "", 20, -0.5, 19.5, "Tagger p [MeV]", 800, 0.0, 10000.0);
-  histograms_.create("Tracking_RecoilN", "", 20, -0.5, 19.5, "N_{recoil}", 10, -0.5, 9.5);
-  histograms_.create("Tracking_RecoilD0", "", 20, -0.5, 19.5, "d_{0} [mm]", 100, -50.0, 50.0);
-  histograms_.create("Tracking_RecoilZ0", "", 20, -0.5, 19.5, "z_{0} [mm]", 100, -50.0, 50.0);
-  histograms_.create("TrackingCutFlowHcal_RecoilX", "", 20, -0.5, 19.5, "RecoilX @Ecal [mm]", 90, -450.0, 450.0);
-  histograms_.create("TrackingHcal_TaggerP", "", 20, -0.5, 19.5, "Tagger p [MeV]", 800, 0.0, 10000.0);
-  histograms_.create("TrackingHcal_RecoilN", "", 20, -0.5, 19.5, "N_{recoil}", 10, -0.5, 9.5);
-  histograms_.create("TrackingHcal_RecoilD0", "", 20, -0.5, 19.5, "d_{0} [mm]", 100, -50.0, 50.0);
-  histograms_.create("TrackingHcal_RecoilZ0", "", 20, -0.5, 19.5, "z_{0} [mm]", 100, -50.0, 50.0);
+  histograms_.create("TrackingCutFlow_RecoilX", "", 18, -0.5, 17.5, "RecoilX @Ecal [mm]", 90, -450.0, 450.0);
+  histograms_.create("Tracking_TaggerP", "", 18, -0.5, 17.5, "Tagger p [MeV]", 800, 0.0, 10000.0);
+  histograms_.create("Tracking_RecoilN", "", 18, -0.5, 17.5, "N_{recoil}", 10, -0.5, 9.5);
+  histograms_.create("Tracking_RecoilD0", "", 18, -0.5, 17.5, "d_{0} [mm]", 100, -50.0, 50.0);
+  histograms_.create("Tracking_RecoilZ0", "", 18, -0.5, 17.5, "z_{0} [mm]", 100, -50.0, 50.0);
+  histograms_.create("TrackingCutFlowHcal_RecoilX", "", 18, -0.5, 17.5, "RecoilX @Ecal [mm]", 90, -450.0, 450.0);
+  histograms_.create("TrackingHcal_TaggerP", "", 18, -0.5, 17.5, "Tagger p [MeV]", 800, 0.0, 10000.0);
+  histograms_.create("TrackingHcal_RecoilN", "", 18, -0.5, 17.5, "N_{recoil}", 10, -0.5, 9.5);
+  histograms_.create("TrackingHcal_RecoilD0", "", 18, -0.5, 17.5, "d_{0} [mm]", 100, -50.0, 50.0);
+  histograms_.create("TrackingHcal_RecoilZ0", "", 18, -0.5, 17.5, "z_{0} [mm]", 100, -50.0, 50.0);
 
-// Reverse direction
+  // Reverse direction
   histograms_.create("Rev_RecoilX", "", 20, -0.5, 19.5, "RecoilX [mm]", 90, -450.0, 450.0);
   histograms_.create("Rev_AvgLayerHit", "", 20, -0.5, 19.5, "Avg hit layer", 34, -0.5, 33.5);
   histograms_.create("Rev_DeepestLayerHit", "", 20, -0.5, 19.5, "Deepest hit layer", 34, -0.5, 33.5);
@@ -132,7 +154,7 @@ void CutBasedDM::onProcessStart(){
   histograms_.create("Rev_NReadoutHits", "", 20, -0.5, 19.5, "#Readout hits", 150, -0.5, 149.5);
   histograms_.create("Rev_StdLayerHit", "", 20, -0.5, 19.5, "Std of hit layers", 70, -0.5, 34.5);
   histograms_.create("Rev_Straight", "", 20, -0.5, 19.5, "Straight tracks", 15, -0.5, 14.5);
-  histograms_.create("Rev_LinRegNew", "", 20, -0.5, 19.5, "Linear regression tracks", 15, -0.5, 14.5);
+  // histograms_.create("Rev_LinRegNew", "", 20, -0.5, 19.5, "Linear regression tracks", 15, -0.5, 14.5);
   histograms_.create("Rev_SummedDet", "", 20, -0.5, 19.5, "Summed ECAL energy [MeV]", 100, 0.0, 10000.0);
   histograms_.create("Rev_SummedTightIso", "", 20, -0.5, 19.5, "Summed ECAL energy with tight iso [MeV]", 100, 0.0, 10000.0);
   histograms_.create("Rev_ShowerRMS", "", 20, -0.5, 19.5, "Shower RMS [mm]", 100, 0.0, 250.0);
@@ -144,100 +166,93 @@ void CutBasedDM::onProcessStart(){
   histograms_.create("Rev_Hcal_MaxSector", "", 20, -0.5, 19.5, "", 5, -0.5, 4.5);
 
   // N-1 plots
-  histograms_.create("N1_EcalBackEnergy", "", 20, -0.5, 19.5, "Ecal back energy [MeV]", 100, 0.0, 3000.0);
-  histograms_.create("N1_MaxCellDep", "", 20, -0.5, 19.5, "Max cell deposition [MeV]", 100, 0.0, 800.0);
-  histograms_.create("N1_NReadoutHits", "", 20, -0.5, 19.5, "#Readout hits", 150, -0.5, 149.5);
-  histograms_.create("N1_StdLayerHit", "", 20, -0.5, 19.5, "Std of hit layers", 70, -0.5, 34.5);
-  histograms_.create("N1_Straight", "", 20, -0.5, 19.5, "Straight tracks", 15, -0.5, 14.5);
-  histograms_.create("N1_SummedDet", "", 20, -0.5, 19.5, "Summed ECAL energy [MeV]", 100, 0.0, 10000.0);
-  histograms_.create("N1_SummedTightIso", "", 20, -0.5, 19.5, "Summed ECAL energy with tight iso [MeV]", 100, 0.0, 10000.0);
-  histograms_.create("N1_ShowerRMS", "", 20, -0.5, 19.5, "Shower RMS [mm]", 100, 0.0, 250.0);
-  histograms_.create("N1_YStd", "", 20, -0.5, 19.5, "Shower RMS_{Y} [mm]", 100, 0.0, 250.0);
-  histograms_.create("N1_Hcal_MaxPE", "", 20, -0.5, 19.5, "HCAL max photo-electron hits", 65, -0.5, 64.5);
-  histograms_.create("N1_Hcal_TotalPE", "", 20, -0.5, 19.5, "HCAL total photo-electron hits", 100, -0.5, 200.5);
-  histograms_.create("N1_Hcal_MaxTiming", "", 20, -0.5, 19.5, "HCAL timing of the max PE hit", 35, 0.0, 35.0);
-  histograms_.create("N1_Hcal_MaxSector", "", 20, -0.5, 19.5, "", 5, -0.5, 4.5);
+  // histograms_.create("N1_EcalBackEnergy", "", 20, -0.5, 19.5, "Ecal back energy [MeV]", 100, 0.0, 3000.0);
+  // histograms_.create("N1_MaxCellDep", "", 20, -0.5, 19.5, "Max cell deposition [MeV]", 100, 0.0, 800.0);
+  // histograms_.create("N1_NReadoutHits", "", 20, -0.5, 19.5, "#Readout hits", 150, -0.5, 149.5);
+  // histograms_.create("N1_StdLayerHit", "", 20, -0.5, 19.5, "Std of hit layers", 70, -0.5, 34.5);
+  // histograms_.create("N1_Straight", "", 20, -0.5, 19.5, "Straight tracks", 15, -0.5, 14.5);
+  // histograms_.create("N1_SummedDet", "", 20, -0.5, 19.5, "Summed ECAL energy [MeV]", 100, 0.0, 10000.0);
+  // histograms_.create("N1_SummedTightIso", "", 20, -0.5, 19.5, "Summed ECAL energy with tight iso [MeV]", 100, 0.0, 10000.0);
+  // histograms_.create("N1_ShowerRMS", "", 20, -0.5, 19.5, "Shower RMS [mm]", 100, 0.0, 250.0);
+  // histograms_.create("N1_YStd", "", 20, -0.5, 19.5, "Shower RMS_{Y} [mm]", 100, 0.0, 250.0);
+  // histograms_.create("N1_Hcal_MaxPE", "", 20, -0.5, 19.5, "HCAL max photo-electron hits", 65, -0.5, 64.5);
+  // histograms_.create("N1_Hcal_TotalPE", "", 20, -0.5, 19.5, "HCAL total photo-electron hits", 100, -0.5, 200.5);
+  // histograms_.create("N1_Hcal_MaxTiming", "", 20, -0.5, 19.5, "HCAL timing of the max PE hit", 35, 0.0, 35.0);
+  // histograms_.create("N1_Hcal_MaxSector", "", 20, -0.5, 19.5, "", 5, -0.5, 4.5);
 
   // histograms_.create("N1_EcalBackEnergy", "", 20, -0.5, 19.5, "Ecal back energy [MeV]", 100, 0.0, 3000.0);
 
   std::vector<std::string> labels = {
-    "All",
-    "Triggerred",            // 1
-    "Fiducial",              // 2
-    "E_{sum} < 3500",       // 3
+    "All / Acceptance",
+    "Fiducial",              // 1
+    "Triggerred",            // 2
+    "E_{sum} < 3500",        // 3
     "E_{SumTight} < 800",        // 4
     "E_{back} < 250",             // 5
     "N_{hits} < 70",              // 6
     "RMS_{shower} < 110",         // 7
     "RMS_{shower,Y} < 70",        // 8
-    "E_{cell,max} < 300",     // 9
+    "E_{cell,max} < 300",         // 9
     "RMS_{Layer,hit} < 5",        // 10
     "N_{straight} < 3",           // 11
-    "PASS_{HcalVeto}",            // 12
-    ""};
+    "PE_{HCal,max} < 8",            // 12
+    };
     
-  if (!fiducial_) labels.at(2) = "Non-fiducial";
+  if (!fiducial_analysis_) labels.at(1) = "Non-fiducial";
 
-  std::vector<TH1 *> hists = {
-  histograms_.get("AvgLayerHit"),
-  histograms_.get("DeepestLayerHit"),
-  histograms_.get("EcalBackEnergy"),
-  histograms_.get("EpAng"),
-  histograms_.get("EpSep"),
-  histograms_.get("FirstNearPhLayer"),
-  histograms_.get("MaxCellDep"),
-  histograms_.get("NReadoutHits"),
-  histograms_.get("StdLayerHit"),
-  histograms_.get("Straight"),
-  histograms_.get("LinRegNew"),
-  histograms_.get("SummedDet"),
-  histograms_.get("SummedTightIso"),
-  histograms_.get("ShowerRMS"),
-  histograms_.get("XStd"),
-  histograms_.get("YStd"),
-  histograms_.get("BDTDiscr"),
-  histograms_.get("BDTDiscrLog"),
-  histograms_.get("StdCutFlow_RecoilX"),
+  setHistLabels("AvgLayerHit", labels);
+  setHistLabels("DeepestLayerHit", labels);
+  setHistLabels("EcalBackEnergy", labels);
+  setHistLabels("EpAng", labels);
+  setHistLabels("EpSep", labels);
+  setHistLabels("FirstNearPhLayer", labels);
+  setHistLabels("MaxCellDep", labels);
+  setHistLabels("NReadoutHits", labels);
+  setHistLabels("StdLayerHit", labels);
+  setHistLabels("Straight", labels);
+  setHistLabels("LinRegNew", labels);
+  setHistLabels("SummedDet", labels);
+  setHistLabels("SummedTightIso", labels);
+  setHistLabels("ShowerRMS", labels);
+  setHistLabels("XStd", labels);
+  setHistLabels("YStd", labels);
+  setHistLabels("BDTDiscr", labels);
+  setHistLabels("BDTDiscrLog", labels);
+  setHistLabels("StdCutFlow_RecoilX", labels);
 
-  histograms_.get("RecoilX"),
-  histograms_.get("RecoilPT"),
-  histograms_.get("RecoilPZ"),
-  histograms_.get("RecoilP"),
-  histograms_.get("RecoilXAtTarget"),
-  histograms_.get("RecoilPTAtTarget"),
-  histograms_.get("RecoilPZAtTarget"),
-  histograms_.get("RecoilPAtTarget"),
-  histograms_.get("RecoilTheta"),
-  histograms_.get("RecoilPhi"),
-  histograms_.get("Hcal_MaxPE"),
-  histograms_.get("Hcal_TotalPE"),
-  histograms_.get("Hcal_MaxTiming"),
-  histograms_.get("Hcal_MaxSector"),
+  setHistLabels("RecoilX", labels);
+  setHistLabels("RecoilPT", labels);
+  setHistLabels("RecoilPZ", labels);
+  setHistLabels("RecoilP", labels);
+  setHistLabels("RecoilXAtTarget", labels);
+  setHistLabels("RecoilPTAtTarget", labels);
+  setHistLabels("RecoilPZAtTarget", labels);
+  setHistLabels("RecoilPAtTarget", labels);
+  setHistLabels("RecoilTheta", labels);
+  setHistLabels("RecoilPhi", labels);
+  setHistLabels("Hcal_MaxPE", labels);
+  setHistLabels("Hcal_TotalPE", labels);
+  setHistLabels("Hcal_MaxTiming", labels);
+  setHistLabels("Hcal_MaxSector", labels);
 
-  histograms_.get("N1_EcalBackEnergy"),
-  histograms_.get("N1_MaxCellDep"),
-  histograms_.get("N1_NReadoutHits"),
-  histograms_.get("N1_StdLayerHit"),
-  histograms_.get("N1_Straight"),
-  histograms_.get("N1_SummedDet"),
-  histograms_.get("N1_SummedTightIso"),
-  histograms_.get("N1_ShowerRMS"),
-  histograms_.get("N1_YStd"),
-  histograms_.get("N1_Hcal_MaxPE"),
-  histograms_.get("N1_Hcal_MaxTiming"),
-  histograms_.get("N1_Hcal_MaxSector")
-  };
-
-  for (int ilabel{1}; ilabel < labels.size(); ++ilabel) {
-    for (auto &hist : hists) {
-      hist->GetXaxis()->SetBinLabel(ilabel, labels[ilabel - 1].c_str());
-    }
-  }
+  // setHistLabels("N1_EcalBackEnergy", labels);
+  // setHistLabels("N1_MaxCellDep", labels);
+  // setHistLabels("N1_NReadoutHits", labels);
+  // setHistLabels("N1_StdLayerHit", labels);
+  // setHistLabels("N1_Straight", labels);
+  // setHistLabels("N1_SummedDet", labels);
+  // setHistLabels("N1_SummedTightIso", labels);
+  // setHistLabels("N1_ShowerRMS", labels);
+  // setHistLabels("N1_YStd", labels);
+  // setHistLabels("N1_Hcal_MaxPE", labels);
+  // setHistLabels("N1_Hcal_MaxTiming", labels);
+  // setHistLabels("N1_Hcal_MaxSector", labels);
 
   std::vector<std::string> labels_Rev = {
-    "All",
-    "Triggerred",            // 14
-    "PASS_{HcalVeto}",           // 13
+    "All / Acceptance",      // 0
+    "Fiducial",              // 1
+    "Triggerred",            // 2
+    "PE_{HCal,max} < 8",           // 13
     "N_{straight} < 3",           // 11
     "RMS_{Layer,hit} < 5",        // 10
     "E_{cell,max} < 300",         // 9
@@ -247,243 +262,183 @@ void CutBasedDM::onProcessStart(){
     "E_{back} < 250",             // 5
     "E_{SumTight} < 800",        // 4
     "E_{sum} < 3500",       // 3
-    "Fiducial",              // 2
-    ""};
+    };
 
-  if (!fiducial_) labels_Rev.at(13) = "Non-fiducial";
-
-  std::vector<TH1 *> hists_Rev = {
-    histograms_.get("Rev_AvgLayerHit"),
-    histograms_.get("Rev_DeepestLayerHit"),
-    histograms_.get("Rev_EcalBackEnergy"),
-    histograms_.get("Rev_EpAng"),
-    histograms_.get("Rev_EpSep"),
-    histograms_.get("Rev_FirstNearPhLayer"),
-    histograms_.get("Rev_MaxCellDep"),
-    histograms_.get("Rev_NReadoutHits"),
-    histograms_.get("Rev_StdLayerHit"),
-    histograms_.get("Rev_Straight"),
-    histograms_.get("Rev_LinRegNew"),
-    histograms_.get("Rev_SummedDet"),
-    histograms_.get("Rev_SummedTightIso"),
-    histograms_.get("Rev_ShowerRMS"),
-    histograms_.get("Rev_XStd"),
-    histograms_.get("Rev_YStd"),
-    histograms_.get("Rev_Hcal_MaxPE"),
-    histograms_.get("Rev_Hcal_MaxTiming"),
-    histograms_.get("Rev_Hcal_MaxSector")
-  };
-
-  for (int ilabel{1}; ilabel < labels_Rev.size(); ++ilabel) {
-    for (auto &hist : hists_Rev) {
-      hist->GetXaxis()->SetBinLabel(ilabel, labels_Rev[ilabel - 1].c_str());
-    }
-  }
-
-  std::vector<TH1 *> hists_HCALsector = {
-    histograms_.get("Hcal_MaxSector"),
-    histograms_.get("N1_Hcal_MaxSector"),
-    histograms_.get("Rev_Hcal_MaxSector")
-  };
+  if (!fiducial_analysis_) labels_Rev.at(1) = "Non-fiducial";
+  setHistLabels("Rev_AvgLayerHit", labels_Rev);
+  setHistLabels("Rev_DeepestLayerHit", labels_Rev);
+  setHistLabels("Rev_EcalBackEnergy", labels_Rev);
+  setHistLabels("Rev_EpAng", labels_Rev);
+  setHistLabels("Rev_EpSep", labels_Rev);
+  setHistLabels("Rev_FirstNearPhLayer", labels_Rev);
+  setHistLabels("Rev_MaxCellDep", labels_Rev);
+  setHistLabels("Rev_NReadoutHits", labels_Rev);
+  setHistLabels("Rev_StdLayerHit", labels_Rev);
+  setHistLabels("Rev_Straight", labels_Rev);
+  // setHistLabels("Rev_LinRegNew", labels_Rev);
+  setHistLabels("Rev_SummedDet", labels_Rev);
+  setHistLabels("Rev_SummedTightIso", labels_Rev);
+  setHistLabels("Rev_ShowerRMS", labels_Rev);
+  setHistLabels("Rev_XStd", labels_Rev);
+  setHistLabels("Rev_YStd", labels_Rev);
+  setHistLabels("Rev_Hcal_MaxPE", labels_Rev);
+  setHistLabels("Rev_Hcal_MaxTiming", labels_Rev);
+  setHistLabels("Rev_Hcal_MaxSector", labels_Rev);
+ 
 
   // enum HcalSection { BACK = 0, TOP = 1, BOTTOM = 2, RIGHT = 3, LEFT = 4 };
-    std::vector<std::string> labels_HCALsector = {
-    "HCAL BACK",         // 1
-    "HCAL TOP",          // 2
-    "HCAL BOTTOM",       // 3
-    "HCAL RIGHT",        // 4
-    "HCAL LEFT",         // 5
-    ""};
+  std::vector<std::string> labels_HCALsector = {
+    "HCAL BACK",         // 0
+    "HCAL TOP",          // 1
+    "HCAL BOTTOM",       // 2
+    "HCAL RIGHT",        // 3
+    "HCAL LEFT",         // 4
+    };
 
-  for (int ilabel{1}; ilabel < labels_HCALsector.size(); ++ilabel) {
-    for (auto &hist : hists_HCALsector) {
-      hist->GetYaxis()->SetBinLabel(ilabel, labels_HCALsector[ilabel - 1].c_str());
-    }
-  }
+  setHistLabelsY("Hcal_MaxSector", labels_HCALsector);
+  // setHistLabelsY("N1_Hcal_MaxSector", labels_HCALsector);
+  setHistLabelsY("Rev_Hcal_MaxSector", labels_HCALsector);
 
-  std::vector<TH1 *> hists_AltCutFlow = {
-    histograms_.get("AltCutFlow_RecoilX"),
-  };
+  std::vector<std::string> labels_accpt = {
+      "All",         // 0
+      "Min energy",  // 1
+      "Min tk hits", // 2
+      "Ecal hit",    // 3
+      "Hcal hit",    // 4
+      "Acceptance"   // 5
+      };
+  setHistLabels("Acceptance", labels_accpt);
 
   // enum HcalSection { BACK = 0, TOP = 1, BOTTOM = 2, RIGHT = 3, LEFT = 4 };
-    std::vector<std::string> labels_AltCutFlow = {
-    "All",
-    "Fiducial",              // 1
-    "Triggerred",            // 2
-    "E_{sum} < 3500",       // 3
-    "E_{SumTight} < 800",        // 4
-    "E_{back} < 250",             // 5
-    "N_{hits} < 70",              // 6
-    "RMS_{shower} < 110",         // 7
-    "RMS_{shower,Y} < 70",        // 8
-    "E_{cell,max} < 300",     // 9
-    "RMS_{Layer,hit} < 5",        // 10
-    "N_{straight} < 3",           // 11
-    "PASS_{HcalVeto}",            // 12
-    ""};
+  std::vector<std::string> labels_AltCutFlow = {
+  "All",
+  "Triggerred",            // 1
+  "Fiducial",              // 2
+  "E_{sum} < 3500",       // 3
+  "E_{SumTight} < 800",        // 4
+  "E_{back} < 250",             // 5
+  "N_{hits} < 70",              // 6
+  "RMS_{shower} < 110",         // 7
+  "RMS_{shower,Y} < 70",        // 8
+  "E_{cell,max} < 300",     // 9
+  "RMS_{Layer,hit} < 5",        // 10
+  "N_{straight} < 3",           // 11
+  "PE_{HCal,max} < 8",            // 12
+  };
+  if (!fiducial_analysis_) labels_AltCutFlow.at(2) = "Non-fiducial";
 
-  if (!fiducial_) labels_AltCutFlow.at(1) = "Non-fiducial";
+  setHistLabels("AltCutFlow_RecoilX",labels_AltCutFlow);
 
-  for (int ilabel{1}; ilabel < labels_AltCutFlow.size(); ++ilabel) {
-    for (auto &hist : hists_AltCutFlow) {
-      hist->GetXaxis()->SetBinLabel(ilabel, labels_AltCutFlow[ilabel - 1].c_str());
-    }
-  }
 
   // CutFlow labels for BDT
-  std::vector<TH1 *> hists_BDTCutFlow = {
-    histograms_.get("BDTCutFlow_RecoilX"),
+  std::vector<std::string> labels_BDTCutFlow = {
+  "All / Acceptance",      // 0
+  "Fiducial",              // 1
+  "Triggerred",            // 2
+  "Ecal BDT",              // 3
+  "N_{straight} < 3",      // 4
+  "PE_{HCal,max} < 8",       // 5
+  "N_{straight} = 0",      // 6
+  "Angle_{e,ph} > 3.",     // 7
   };
 
-    std::vector<std::string> labels_BDTCutFlow = {
-    "All",
-    "Triggerred",            // 1
-    "Fiducial",              // 2
-    "BDT passed",            // 3
-    "N_{straight} < 3",      // 4
-    "PASS_{HcalVeto}",       // 5
-    "N_{straight} = 0",      // 6
-    "Angle_{e,ph} > 3.",     // 7
-    ""};
+  if (!fiducial_analysis_) labels_BDTCutFlow.at(1) = "Non-fiducial";
+  setHistLabels("BDTCutFlow_RecoilX",labels_BDTCutFlow);
 
-  if (!fiducial_) labels_BDTCutFlow.at(2) = "Non-fiducial";
+  // // CutFlow labels for BDT with new lin-reg
+  // std::vector<std::string> labels_LinRegCutFlow = {
+  // "All",
+  // "Triggerred",            // 1
+  // "Fiducial",              // 2
+  // "Ecal BDT",            // 3
+  // "N_{straight} < 3",      // 4
+  // "PE_{HCal,max} < 8",       // 5
+  // "N_{straight} = 0",      // 6
+  // "N_{lin-reg} = 0",      // 7
+  // "Angle_{e,ph} > 3.",     // 8
+  // ""};
 
-  for (int ilabel{1}; ilabel < labels_BDTCutFlow.size(); ++ilabel) {
-    for (auto &hist : hists_BDTCutFlow) {
-      hist->GetXaxis()->SetBinLabel(ilabel, labels_BDTCutFlow[ilabel - 1].c_str());
-    }
-  }
+  // if (!fiducial_analysis_) labels_LinRegCutFlow.at(2) = "Non-fiducial";
+  // setHistLabels("LinRegCutFlow_RecoilX",labels_LinRegCutFlow);
 
-  // CutFlow labels for BDT with new lin-reg
-   std::vector<TH1 *> hists_LinRegCutFlow = {
-    histograms_.get("LinRegCutFlow_RecoilX"),
-  };
+  // // CutFlow labels for BDT with new lin-reg
+  // std::vector<std::string> labels_LinRegCutFlowHcal = {
+  // "All",
+  // "Triggerred",            // 1
+  // "PE_{HCal,max} < 8",       // 2
+  // "Fiducial",              // 3
+  // "Ecal BDT",            // 4
+  // "N_{straight} = 0",      // 5
+  // "N_{lin-reg} = 0",      // 6
+  // "Angle_{e,ph} > 3.",     // 7
+  // ""};
 
-    std::vector<std::string> labels_LinRegCutFlow = {
-    "All",
-    "Triggerred",            // 1
-    "Fiducial",              // 2
-    "BDT passed",            // 3
-    "N_{straight} < 3",      // 4
-    "PASS_{HcalVeto}",       // 5
-    "N_{straight} = 0",      // 6
-    "N_{lin-reg} = 0",      // 7
-    "Angle_{e,ph} > 3.",     // 8
-    ""};
-
-  if (!fiducial_) labels_LinRegCutFlow.at(2) = "Non-fiducial";
-
-  for (int ilabel{1}; ilabel < labels_LinRegCutFlow.size(); ++ilabel) {
-    for (auto &hist : hists_LinRegCutFlow) {
-      hist->GetXaxis()->SetBinLabel(ilabel, labels_LinRegCutFlow[ilabel - 1].c_str());
-    }
-  }
-
-  // CutFlow labels for BDT with new lin-reg
-   std::vector<TH1 *> hists_LinRegCutFlowHcal = {
-    histograms_.get("LinRegCutFlowHcal_RecoilX"),
-  };
-
-    std::vector<std::string> labels_LinRegCutFlowHcal = {
-    "All",
-    "Triggerred",            // 1
-    "PASS_{HcalVeto}",       // 2
-    "Fiducial",              // 3
-    "BDT passed",            // 4
-    "N_{straight} = 0",      // 5
-    "N_{lin-reg} = 0",      // 6
-    "Angle_{e,ph} > 3.",     // 7
-    ""};
-
-  if (!fiducial_) labels_LinRegCutFlowHcal.at(3) = "Non-fiducial";
-
-  for (int ilabel{1}; ilabel < labels_LinRegCutFlowHcal.size(); ++ilabel) {
-    for (auto &hist : hists_LinRegCutFlowHcal) {
-      hist->GetXaxis()->SetBinLabel(ilabel, labels_LinRegCutFlowHcal[ilabel - 1].c_str());
-    }
-  }
+  // if (!fiducial_analysis_) labels_LinRegCutFlowHcal.at(3) = "Non-fiducial";
+  // setHistLabels("LinRegCutFlowHcal_RecoilX",labels_LinRegCutFlowHcal);
 
   // CutFlow labels for BDT with tracking
-   std::vector<TH1 *> hists_TrackingCutFlow = {
-    histograms_.get("TrackingCutFlow_RecoilX"),
-    histograms_.get("Tracking_TaggerP"),
-    histograms_.get("Tracking_RecoilN"),
-    histograms_.get("Tracking_RecoilD0"),
-    histograms_.get("Tracking_RecoilZ0"),
-  };
+  std::vector<std::string> labels_TrackingCutFlow = {
+  "All / Acceptance",      // 0
+  "Fiducial",              // 1
+  "Triggerred",            // 2
+  "p_{tagger} > 5600",     // 3
+  "N_{recoil} = 1",
+  "|d_{0}| < 10",
+  "|z_{0}| < 40",
+  "Ecal BDT",
+  "N_{straight} < 3",
+  "PE_{HCal,max} < 8",
+  "N_{straight} = 0",
+  "Angle_{e,ph} > 3.",     // 11
+  ""};
 
-    std::vector<std::string> labels_TrackingCutFlow = {
-    "All",
-    "Triggerred",            // 1
-    "p_{tagger} < 5600",     // 2
-    "N_{recoil} = 1",  		 // 3
-    "|d_{0}| < 10",  		 // 4
-    "|z_{0}| < 40",  		 // 5
-    "Fiducial",              // 6
-    "BDT passed",            // 7
-    "N_{straight} < 3",      // 8
-    "PASS_{HcalVeto}",       // 9
-    "N_{straight} = 0",      // 10
-    "Angle_{e,ph} > 3.",     // 11
-    ""};
+  if (!fiducial_analysis_) labels_TrackingCutFlow.at(6) = "Non-fiducial";
 
-  if (!fiducial_) labels_TrackingCutFlow.at(6) = "Non-fiducial";
+  setHistLabels("TrackingCutFlow_RecoilX",labels_TrackingCutFlow);
+  setHistLabels("Tracking_TaggerP",labels_TrackingCutFlow);
+  setHistLabels("Tracking_RecoilN",labels_TrackingCutFlow);
+  setHistLabels("Tracking_RecoilD0",labels_TrackingCutFlow);
+  setHistLabels("Tracking_RecoilZ0",labels_TrackingCutFlow);
 
-  for (int ilabel{1}; ilabel < labels_TrackingCutFlow.size(); ++ilabel) {
-    for (auto &hist : hists_TrackingCutFlow) {
-      hist->GetXaxis()->SetBinLabel(ilabel, labels_TrackingCutFlow[ilabel - 1].c_str());
-    }
-  }
-
-// CutFlow labels for BDT with tracking with Hcal first
-   std::vector<TH1 *> hists_TrackingCutFlowHcal = {
-    histograms_.get("TrackingCutFlowHcal_RecoilX"),
-    histograms_.get("TrackingHcal_TaggerP"),
-    histograms_.get("TrackingHcal_RecoilN"),
-    histograms_.get("TrackingHcal_RecoilD0"),
-    histograms_.get("TrackingHcal_RecoilZ0"),
-  };
-
-    std::vector<std::string> labels_TrackingCutFlowHcal = {
-    "All",
-    "Triggerred",            // 1
-    "PASS_{HcalVeto}",       // 2
-    "Fiducial",              // 3
-    "BDT passed",            // 4
-    "N_{straight} = 0",      // 5
-    "Angle_{e,ph} > 3.",     // 6
-    "p_{tagger} < 5600",     // 7
-    "N_{recoil} = 1",  		 // 8
-    "|d_{0}| < 10",  		 // 9
-    "|z_{0}| < 40",  		 // 10
-    ""};
-
-  if (!fiducial_) labels_TrackingCutFlowHcal.at(4) = "Non-fiducial";
-
-  for (int ilabel{1}; ilabel < labels_TrackingCutFlowHcal.size(); ++ilabel) {
-    for (auto &hist : hists_TrackingCutFlowHcal) {
-      hist->GetXaxis()->SetBinLabel(ilabel, labels_TrackingCutFlowHcal[ilabel - 1].c_str());
-    }
-  }
+  // CutFlow labels for BDT with tracking with Hcal first
+  std::vector<std::string> labels_TrackingCutFlowHcal = {
+  "All / Acceptance",
+  "Fiducial",              // 1
+  "Triggerred",            // 2
+  "PE_{HCal,max} < 8",       // 3
+  "Ecal BDT",            // 4
+  "N_{straight} = 0",      // 5
+  "Angle_{e,ph} > 3.",     // 6
+  "p_{tagger} > 5600",     // 7
+  "N_{recoil} = 1",  		 // 8
+  "|d_{0}| < 10",  		 // 9
+  "|z_{0}| < 40",  		 // 10
+  ""};
+  if (!fiducial_analysis_) labels_TrackingCutFlowHcal.at(1) = "Non-fiducial";
+  setHistLabels("TrackingCutFlowHcal_RecoilX",labels_TrackingCutFlowHcal);
+  setHistLabels("TrackingHcal_TaggerP",labels_TrackingCutFlowHcal);
+  setHistLabels("TrackingHcal_RecoilN",labels_TrackingCutFlowHcal);
+  setHistLabels("TrackingHcal_RecoilD0",labels_TrackingCutFlowHcal);
+  setHistLabels("TrackingHcal_RecoilZ0",labels_TrackingCutFlowHcal);
 
 }
 
 void CutBasedDM::analyze(const framework::Event& event) {
-  // std::cout << " ---------------------------------------------" << std::endl;
+  //std::cout << " ---------------------------------------------" << std::endl;
   auto vetoNew{event.getObject<ldmx::EcalVetoResult>("EcalVetoNew","")};
   auto trigResult{event.getObject<ldmx::TriggerResult>(trigger_collName_, trigger_passName_)};
   auto hcalVeto{event.getObject<ldmx::HcalVetoResult>("HcalVeto","cutbased")};
   auto hcalRecHits{event.getCollection<ldmx::HcalHit>("HcalRecHits", "")};
   auto targetSpHits{event.getCollection<ldmx::SimTrackerHit>("TargetScoringPlaneHits")};
-  std::shared_ptr<ldmx::Tracks> taggerTrackCollection_{nullptr};
-  std::shared_ptr<ldmx::Tracks> recoilTrackCollection_{nullptr};
-  if (event.exists(tagger_track_collection_)) {
-    taggerTrackCollection_ = std::make_shared<ldmx::Tracks>(
-        event.getCollection<ldmx::Track>(tagger_track_collection_));
-  }
-  if (event.exists(recoil_track_collection_)) {
-    recoilTrackCollection_ = std::make_shared<ldmx::Tracks>(
-        event.getCollection<ldmx::Track>(recoil_track_collection_));
+  auto taggerTrackCollection{event.getCollection<ldmx::Track>("TaggerTracks","cutbased")};
+  auto recoilTrackCollection{event.getCollection<ldmx::Track>("RecoilTracks","cutbased")};
+
+  bool acceptance{true};
+  int fiducial_analysis_flag{-1};
+  if (signal_) {
+    auto acceptanceChecks{event.getObject<ldmx::FiducialFlag>("RecoilTruthFiducialFlags")};
+    acceptance =  acceptanceChecks.isFiducial();
+    fiducial_analysis_flag = acceptanceChecks.getFiducialFlag();
   }
 
   // Take recoil momentum from SIM particles
@@ -520,11 +475,11 @@ void CutBasedDM::analyze(const framework::Event& event) {
       }
     }
   }
-//  std::cout << " pYAtTarget " <<  pYAtTarget << " totMomAtTarget " << totMomAtTarget ;
+  //std::cout << " pYAtTarget " <<  pYAtTarget << " totMomAtTarget " << totMomAtTarget << std::endl ;
   auto phiEleAtTarget =   (180/M_PI)*std::acos(pYAtTarget/totMomAtTarget)-90.;
   auto thetaEleAtTarget = (180/M_PI)*std::acos(pZAtTarget/totMomAtTarget);
-  // std::cout << " phiEleAtTarget " << phiEleAtTarget << " phiEle " << phiEle
-  //  std::cout << " thetaEleAtTarget " << thetaEleAtTarget << " phiEleAtTarget " << phiEleAtTarget << std::endl;
+  // //std::cout << " phiEleAtTarget " << phiEleAtTarget << " phiEle " << phiEle
+  //  //std::cout << " thetaEleAtTarget " << thetaEleAtTarget << " phiEleAtTarget " << phiEleAtTarget << std::endl;
 
   // Take recoil momentum from ECAL SP
   // pT2 = vetoNew.getRecoilMomentum()[0]*vetoNew.getRecoilMomentum()[0] + vetoNew.getRecoilMomentum()[1]*vetoNew.getRecoilMomentum()[1];
@@ -550,9 +505,11 @@ void CutBasedDM::analyze(const framework::Event& event) {
   defaultMaxHit_.setToaNeg(-9999);
   defaultMaxHit_.setAmplitudePos(-9999);
   defaultMaxHit_.setAmplitudeNeg(-9999);
+
   const ldmx::HcalHit *maxPEHit{&defaultMaxHit_};
 
   // Loop on the HCAL hits
+  //std::cout << " Num of hcalRecHits = " << hcalRecHits.size() << std::endl;
   for (const auto hcalHit : hcalRecHits) {
     float maxTime_{50.};
     if (hcalHit.getTime() >= maxTime_) {
@@ -583,62 +540,39 @@ void CutBasedDM::analyze(const framework::Event& event) {
   histograms_.fill("TrigEffVsRecoilPTAtTarget", trigResult.passed() , pTAtTarget );
 
   // CutFlow here
-  bool passedCutsArrayCnC[12];
+  bool passedCutsArrayCnC[13];
+  //std::cout << " CnC cutflow = " << std::endl;
   std::fill(std::begin(passedCutsArrayCnC), std::end(passedCutsArrayCnC),false);
-  passedCutsArrayCnC[0]  = (trigResult.passed()) ? true : false;
-  passedCutsArrayCnC[1]  = ((fiducial_ && vetoNew.getFiducial()) || (!fiducial_ && !vetoNew.getFiducial())) ? true : false;
-  passedCutsArrayCnC[2]  = (vetoNew.getSummedDet() < 3500) ? true : false;
-  passedCutsArrayCnC[3]  = (vetoNew.getSummedTightIso() < 800) ? true : false;
-  passedCutsArrayCnC[4]  = (vetoNew.getEcalBackEnergy() < 250) ? true : false;
-  passedCutsArrayCnC[5]  = (vetoNew.getNReadoutHits() < 70) ? true : false;
-  passedCutsArrayCnC[6]  = (vetoNew.getShowerRMS() < 110) ? true : false;
-  passedCutsArrayCnC[7]  = (vetoNew.getYStd() < 70) ? true : false;
-  passedCutsArrayCnC[8]  = (vetoNew.getMaxCellDep() < 300) ? true : false;
-  passedCutsArrayCnC[9]  = (vetoNew.getStdLayerHit() < 5) ? true : false;
-  passedCutsArrayCnC[10]  = (vetoNew.getNStraightTracks() < 3) ? true : false;
-  passedCutsArrayCnC[11]  = (hcalVeto.passesVeto()) ? true : false;
+  passedCutsArrayCnC[0]  = (acceptance) ? true : false;
+  passedCutsArrayCnC[1]  = ((fiducial_analysis_ && vetoNew.getFiducial()) || (!fiducial_analysis_ && !vetoNew.getFiducial())) ? true : false;
+  passedCutsArrayCnC[2]  = (trigResult.passed()) ? true : false;
+  passedCutsArrayCnC[3]  = (vetoNew.getSummedDet() < 3500) ? true : false;
+  passedCutsArrayCnC[4]  = (vetoNew.getSummedTightIso() < 800) ? true : false;
+  passedCutsArrayCnC[5]  = (vetoNew.getEcalBackEnergy() < 250) ? true : false;
+  passedCutsArrayCnC[6]  = (vetoNew.getNReadoutHits() < 70) ? true : false;
+  passedCutsArrayCnC[7]  = (vetoNew.getShowerRMS() < 110) ? true : false;
+  passedCutsArrayCnC[8]  = (vetoNew.getYStd() < 70) ? true : false;
+  passedCutsArrayCnC[9]  = (vetoNew.getMaxCellDep() < 300) ? true : false;
+  passedCutsArrayCnC[10]  = (vetoNew.getStdLayerHit() < 5) ? true : false;
+  passedCutsArrayCnC[11]  = (vetoNew.getNStraightTracks() < 3) ? true : false;
+  passedCutsArrayCnC[12]  = (hcalVeto.passesVeto()) ? true : false;
 
   // Fill histograms
-  histograms_.fill("RecoilX", 0. , vetoNew.getRecoilX() );
-  histograms_.fill("AvgLayerHit", 0. , vetoNew.getAvgLayerHit() );
-  histograms_.fill("DeepestLayerHit", 0. , vetoNew.getDeepestLayerHit() );
-  histograms_.fill("EcalBackEnergy", 0. , vetoNew.getEcalBackEnergy() );
-  histograms_.fill("EpAng", 0. , vetoNew.getEPAng() );
-  histograms_.fill("EpSep", 0. , vetoNew.getEPSep() );
-  histograms_.fill("FirstNearPhLayer", 0. , vetoNew.getFirstNearPhLayer() );
-  histograms_.fill("MaxCellDep", 0. , vetoNew.getMaxCellDep() );
-  histograms_.fill("NReadoutHits", 0. , vetoNew.getNReadoutHits() );
-  histograms_.fill("StdLayerHit", 0. , vetoNew.getStdLayerHit() );
-  histograms_.fill("Straight", 0. , vetoNew.getNStraightTracks() );
-  histograms_.fill("LinRegNew", 0. , vetoNew.getNLinRegTracks() );
-  histograms_.fill("SummedDet", 0. , vetoNew.getSummedDet() );
-  histograms_.fill("SummedTightIso", 0. , vetoNew.getSummedTightIso() );
-  histograms_.fill("ShowerRMS", 0. , vetoNew.getShowerRMS() );
-  histograms_.fill("XStd", 0. , vetoNew.getXStd() );
-  histograms_.fill("YStd", 0. , vetoNew.getYStd() );
-  histograms_.fill("BDTDiscr", 0. , vetoNew.getDisc() );
-  histograms_.fill("BDTDiscrLog", 0. , -log(1-vetoNew.getDisc()) );
-  histograms_.fill("StdCutFlow_RecoilX", 0. , vetoNew.getRecoilX() );
-  
-  histograms_.fill("RecoilPT", 0. ,pT );
-  histograms_.fill("RecoilPZ", 0. , pZ );
-  histograms_.fill("RecoilP", 0. , totMom );
-  histograms_.fill("RecoilXAtTarget", 0. ,XAtTarget );
-  histograms_.fill("RecoilPTAtTarget", 0. ,pTAtTarget );
-  histograms_.fill("RecoilPZAtTarget", 0. , pZAtTarget );
-  histograms_.fill("RecoilPAtTarget", 0. , totMomAtTarget );
-  histograms_.fill("RecoilTheta", 0. , thetaEleAtTarget );
-  histograms_.fill("RecoilPhi", 0. , phiEleAtTarget );
-  histograms_.fill("Hcal_MaxPE", 0. , hcalMaxPE );
-  histograms_.fill("Hcal_TotalPE", 0. , hcalTotalPe );
-  histograms_.fill("Hcal_MaxTiming", 0. , hcalMaxTiming );
-  histograms_.fill("Hcal_MaxSector", 0. , hcalMaxSector );
 
-  histograms_.fill("AltCutFlow_RecoilX", 0 , vetoNew.getRecoilX() );
-  histograms_.fill("BDTCutFlow_RecoilX", 0 , vetoNew.getRecoilX() );
-  histograms_.fill("LinRegCutFlow_RecoilX", 0 , vetoNew.getRecoilX() );
-  histograms_.fill("LinRegCutFlowHcal_RecoilX", 0 , vetoNew.getRecoilX() );
+  bool has_min_energy       = fiducial_analysis_flag & (1 << 0);
+  bool has_min_tracker_hits = fiducial_analysis_flag & (1 << 1);
+  bool has_ecal_hit         = fiducial_analysis_flag & (1 << 2);
+  bool has_hcal_hit         = fiducial_analysis_flag & (1 << 3);
+  if (fiducial_analysis_flag > 0) {
+    histograms_.fill("Acceptance", 0. , vetoNew.getRecoilX() );
+    if (has_min_energy) histograms_.fill("Acceptance", 1. , vetoNew.getRecoilX() );
+    if (has_min_tracker_hits) histograms_.fill("Acceptance", 2. , vetoNew.getRecoilX() );
+    if (has_ecal_hit) histograms_.fill("Acceptance", 3. , vetoNew.getRecoilX() );
+    if (has_hcal_hit) histograms_.fill("Acceptance", 4. , vetoNew.getRecoilX() );
+    if (acceptance) histograms_.fill("Acceptance", 5. , vetoNew.getRecoilX() );
+  }
   
+
   for (size_t i=0;i<sizeof(passedCutsArrayCnC);i++) {
     bool allCutsPassedSoFar = true;
     for (size_t j=0;j<=i;j++) {
@@ -648,7 +582,7 @@ void CutBasedDM::analyze(const framework::Event& event) {
       }
     }
     if (allCutsPassedSoFar) {
-      // std::cout 
+      // //std::cout 
       //   << " i-th cut = " << i 
       //   << " trigger = " << trigResult.passed() 
       //   << " getRecoilX = " << vetoNew.getRecoilX() 
@@ -662,42 +596,42 @@ void CutBasedDM::analyze(const framework::Event& event) {
       //   << " getStdLayerHit = " << vetoNew.getStdLayerHit()
       //   << " getNStraightTracks = " << vetoNew.getNStraightTracks()
       //   << " hcalVeto = " << hcalVeto.passesVeto()
-      // std::cout << "hcalMaxPE = " <<  hcalMaxPE << " hcal total" << hcalTotalPe <<  " maxTime = " << hcalMaxTiming << " where = " << hcalMaxSector
+      // //std::cout << "hcalMaxPE = " <<  hcalMaxPE << " hcal total" << hcalTotalPe <<  " maxTime = " << hcalMaxTiming << " where = " << hcalMaxSector
       // << std::endl;
 
-      histograms_.fill("RecoilX", i+1 , vetoNew.getRecoilX() );
-      histograms_.fill("AvgLayerHit", i+1 , vetoNew.getAvgLayerHit() );
-      histograms_.fill("DeepestLayerHit", i+1 , vetoNew.getDeepestLayerHit() );
-      histograms_.fill("EcalBackEnergy", i+1 , vetoNew.getEcalBackEnergy() );
-      histograms_.fill("EpAng", i+1 , vetoNew.getEPAng() );
-      histograms_.fill("EpSep", i+1 , vetoNew.getEPSep() );
-      histograms_.fill("FirstNearPhLayer", i+1 , vetoNew.getFirstNearPhLayer() );
-      histograms_.fill("MaxCellDep", i+1 , vetoNew.getMaxCellDep() );
-      histograms_.fill("NReadoutHits", i+1 , vetoNew.getNReadoutHits() );
-      histograms_.fill("StdLayerHit", i+1 , vetoNew.getStdLayerHit() );
-      histograms_.fill("Straight", i+1 , vetoNew.getNStraightTracks() );
-      histograms_.fill("LinRegNew", i+1 , vetoNew.getNLinRegTracks() );
-      histograms_.fill("SummedDet", i+1 , vetoNew.getSummedDet() );
-      histograms_.fill("SummedTightIso", i+1 , vetoNew.getSummedTightIso() );
-      histograms_.fill("ShowerRMS", i+1 , vetoNew.getShowerRMS() );
-      histograms_.fill("XStd", i+1 , vetoNew.getXStd() );
-      histograms_.fill("YStd", i+1 , vetoNew.getYStd() );
-      histograms_.fill("BDTDiscr", i+1 , vetoNew.getDisc() );
-      histograms_.fill("BDTDiscrLog", i+1 , -log(1-vetoNew.getDisc()) );
-      histograms_.fill("StdCutFlow_RecoilX", i+1 , vetoNew.getRecoilX() );
-      histograms_.fill("RecoilPT", i+1 ,pT );
-      histograms_.fill("RecoilPZ", i+1 , pZ );
-      histograms_.fill("RecoilP", i+1 , totMom );
-      histograms_.fill("RecoilXAtTarget", i+1 ,XAtTarget );
-      histograms_.fill("RecoilPTAtTarget", i+1 ,pTAtTarget );
-      histograms_.fill("RecoilPZAtTarget", i+1 , pZAtTarget );
-      histograms_.fill("RecoilPAtTarget", i+1 , totMomAtTarget );
-      histograms_.fill("RecoilTheta", i+1. , thetaEleAtTarget );
-      histograms_.fill("RecoilPhi", i+1 , phiEleAtTarget );
-      histograms_.fill("Hcal_MaxPE", i+1. , hcalMaxPE );
-      histograms_.fill("Hcal_TotalPE", i+1. , hcalTotalPe );
-      histograms_.fill("Hcal_MaxTiming", i+1. , hcalMaxTiming );
-      histograms_.fill("Hcal_MaxSector", i+1. , hcalMaxSector );
+      histograms_.fill("RecoilX", i, vetoNew.getRecoilX() );
+      histograms_.fill("AvgLayerHit", i, vetoNew.getAvgLayerHit() );
+      histograms_.fill("DeepestLayerHit", i, vetoNew.getDeepestLayerHit() );
+      histograms_.fill("EcalBackEnergy", i, vetoNew.getEcalBackEnergy() );
+      histograms_.fill("EpAng", i, vetoNew.getEPAng() );
+      histograms_.fill("EpSep", i, vetoNew.getEPSep() );
+      histograms_.fill("FirstNearPhLayer", i, vetoNew.getFirstNearPhLayer() );
+      histograms_.fill("MaxCellDep", i, vetoNew.getMaxCellDep() );
+      histograms_.fill("NReadoutHits", i, vetoNew.getNReadoutHits() );
+      histograms_.fill("StdLayerHit", i, vetoNew.getStdLayerHit() );
+      histograms_.fill("Straight", i, vetoNew.getNStraightTracks() );
+      histograms_.fill("LinRegNew", i, vetoNew.getNLinRegTracks() );
+      histograms_.fill("SummedDet", i, vetoNew.getSummedDet() );
+      histograms_.fill("SummedTightIso", i, vetoNew.getSummedTightIso() );
+      histograms_.fill("ShowerRMS", i, vetoNew.getShowerRMS() );
+      histograms_.fill("XStd", i, vetoNew.getXStd() );
+      histograms_.fill("YStd", i, vetoNew.getYStd() );
+      histograms_.fill("BDTDiscr", i, vetoNew.getDisc() );
+      histograms_.fill("BDTDiscrLog", i, -log(1-vetoNew.getDisc()) );
+      histograms_.fill("StdCutFlow_RecoilX", i, vetoNew.getRecoilX() );
+      histograms_.fill("RecoilPT", i, pT );
+      histograms_.fill("RecoilPZ", i, pZ );
+      histograms_.fill("RecoilP", i, totMom );
+      histograms_.fill("RecoilXAtTarget", i,XAtTarget );
+      histograms_.fill("RecoilPTAtTarget", i,pTAtTarget );
+      histograms_.fill("RecoilPZAtTarget", i, pZAtTarget );
+      histograms_.fill("RecoilPAtTarget", i, totMomAtTarget );
+      histograms_.fill("RecoilTheta", i, thetaEleAtTarget );
+      histograms_.fill("RecoilPhi", i, phiEleAtTarget );
+      histograms_.fill("Hcal_MaxPE", i, hcalMaxPE );
+      histograms_.fill("Hcal_TotalPE", i, hcalTotalPe );
+      histograms_.fill("Hcal_MaxTiming", i, hcalMaxTiming );
+      histograms_.fill("Hcal_MaxSector", i, hcalMaxSector );
 
       if (i==1) {
         histograms_.fill("BDTDiscrVsHcalPE_PreS", hcalMaxPE , vetoNew.getDisc() );
@@ -711,20 +645,22 @@ void CutBasedDM::analyze(const framework::Event& event) {
   }
 
   // Alternative cutFlow here
-  bool passedCutsArrayAlt[12];
+  bool passedCutsArrayAlt[13];
+  //std::cout << " Alternative cutFlow here " << std::endl;
   std::fill(std::begin(passedCutsArrayAlt), std::end(passedCutsArrayAlt),false);
-  passedCutsArrayAlt[0]  = ((fiducial_ && vetoNew.getFiducial()) || (!fiducial_ && !vetoNew.getFiducial())) ? true : false;
-  passedCutsArrayAlt[1]  = (trigResult.passed()) ? true : false;
-  passedCutsArrayAlt[2]  = (vetoNew.getSummedDet() < 3500) ? true : false;
-  passedCutsArrayAlt[3]  = (vetoNew.getSummedTightIso() < 800) ? true : false;
-  passedCutsArrayAlt[4]  = (vetoNew.getEcalBackEnergy() < 250) ? true : false;
-  passedCutsArrayAlt[5]  = (vetoNew.getNReadoutHits() < 70) ? true : false;
-  passedCutsArrayAlt[6]  = (vetoNew.getShowerRMS() < 110) ? true : false;
-  passedCutsArrayAlt[7]  = (vetoNew.getYStd() < 70) ? true : false;
-  passedCutsArrayAlt[8]  = (vetoNew.getMaxCellDep() < 300) ? true : false;
-  passedCutsArrayAlt[9]  = (vetoNew.getStdLayerHit() < 5) ? true : false;
-  passedCutsArrayAlt[10]  = (vetoNew.getNStraightTracks() < 3) ? true : false;
-  passedCutsArrayAlt[11]  = (hcalVeto.passesVeto()) ? true : false;
+  passedCutsArrayAlt[0]  = (acceptance) ? true : false;
+  passedCutsArrayAlt[1]  = ((fiducial_analysis_ && vetoNew.getFiducial()) || (!fiducial_analysis_ && !vetoNew.getFiducial())) ? true : false;
+  passedCutsArrayAlt[2]  = (trigResult.passed()) ? true : false;
+  passedCutsArrayAlt[3]  = (vetoNew.getSummedDet() < 3500) ? true : false;
+  passedCutsArrayAlt[4]  = (vetoNew.getSummedTightIso() < 800) ? true : false;
+  passedCutsArrayAlt[5]  = (vetoNew.getEcalBackEnergy() < 250) ? true : false;
+  passedCutsArrayAlt[6]  = (vetoNew.getNReadoutHits() < 70) ? true : false;
+  passedCutsArrayAlt[7]  = (vetoNew.getShowerRMS() < 110) ? true : false;
+  passedCutsArrayAlt[8]  = (vetoNew.getYStd() < 70) ? true : false;
+  passedCutsArrayAlt[9]  = (vetoNew.getMaxCellDep() < 300) ? true : false;
+  passedCutsArrayAlt[10]  = (vetoNew.getStdLayerHit() < 5) ? true : false;
+  passedCutsArrayAlt[11]  = (vetoNew.getNStraightTracks() < 3) ? true : false;
+  passedCutsArrayAlt[12]  = (hcalVeto.passesVeto()) ? true : false;
 
   for (size_t i=0;i<sizeof(passedCutsArrayAlt);i++) {
     bool allCutsPassedSoFar = true;
@@ -735,20 +671,26 @@ void CutBasedDM::analyze(const framework::Event& event) {
       }
     }
     if (allCutsPassedSoFar) {
-      histograms_.fill("AltCutFlow_RecoilX", i+1 , vetoNew.getRecoilX() );
+      histograms_.fill("AltCutFlow_RecoilX", i, vetoNew.getRecoilX() );
     }
   }
 
   // BDT based cutFlow here
-  bool passedCutsArrayBDT[7];
+  bool passedCutsArrayBDT[8];
+  //std::cout << " BDT cutFlow here " << std::endl;
   std::fill(std::begin(passedCutsArrayBDT), std::end(passedCutsArrayBDT),false);
-  passedCutsArrayBDT[0]  = (trigResult.passed()) ? true : false;
-  passedCutsArrayBDT[1]  = ((fiducial_ && vetoNew.getFiducial()) || (!fiducial_ && !vetoNew.getFiducial())) ? true : false;
-  passedCutsArrayBDT[2]  = (vetoNew.getDisc() > 0.99741) ? true : false;
-  passedCutsArrayBDT[3]  = (vetoNew.getNStraightTracks() < 3) ? true : false;
-  passedCutsArrayBDT[4]  = (hcalVeto.passesVeto()) ? true : false;
-  passedCutsArrayBDT[5]  = (vetoNew.getNStraightTracks() == 0) ? true : false;
-  passedCutsArrayBDT[6]  = ((vetoNew.getEPAng() > 3) && (fiducial_ && vetoNew.getEPAng()  < 999) || (!fiducial_ )) ? true : false;
+  passedCutsArrayBDT[0]  = (acceptance) ? true : false;
+  passedCutsArrayBDT[1]  = ((fiducial_analysis_ && vetoNew.getFiducial()) || (!fiducial_analysis_ && !vetoNew.getFiducial())) ? true : false;
+  passedCutsArrayBDT[2]  = (trigResult.passed()) ? true : false;
+  passedCutsArrayBDT[3]  = (vetoNew.getDisc() > 0.99741) ? true : false;
+  passedCutsArrayBDT[4]  = (vetoNew.getNStraightTracks() < 3) ? true : false;
+  passedCutsArrayBDT[5]  = (hcalVeto.passesVeto()) ? true : false;
+  passedCutsArrayBDT[6]  = (vetoNew.getNStraightTracks() == 0) ? true : false;
+  if (fiducial_analysis_) {
+    passedCutsArrayBDT[7]  = (vetoNew.getEPAng() > 3)  ? true : false;
+  } else {
+    passedCutsArrayBDT[7]  = true;
+  }
 
 
   for (size_t i=0;i<sizeof(passedCutsArrayBDT);i++) {
@@ -760,105 +702,107 @@ void CutBasedDM::analyze(const framework::Event& event) {
       }
     }
     if (allCutsPassedSoFar) {
-      histograms_.fill("BDTCutFlow_RecoilX", i+1 , vetoNew.getRecoilX() );
+      // std::cout << " vetoNew.getEPAng() = " << vetoNew.getEPAng() << "  i = " << i << std::endl;
+      histograms_.fill("BDTCutFlow_RecoilX", i, vetoNew.getRecoilX() );
     }
   }
 
-  // BDT based cutFlow here with linreg
-  bool passedCutsArrayLinReg[8];
-  std::fill(std::begin(passedCutsArrayLinReg), std::end(passedCutsArrayLinReg),false);
-  passedCutsArrayLinReg[0]  = (trigResult.passed()) ? true : false;
-  passedCutsArrayLinReg[1]  = ((fiducial_ && vetoNew.getFiducial()) || (!fiducial_ && !vetoNew.getFiducial())) ? true : false;
-  passedCutsArrayLinReg[2]  = (vetoNew.getDisc() > 0.99741) ? true : false;
-  passedCutsArrayLinReg[3]  = (vetoNew.getNStraightTracks() < 3) ? true : false;
-  passedCutsArrayLinReg[4]  = (hcalVeto.passesVeto()) ? true : false;
-  passedCutsArrayLinReg[5]  = (vetoNew.getNStraightTracks() == 0) ? true : false;
-  passedCutsArrayLinReg[6]  = (vetoNew.getNLinRegTracks() == 0) ? true : false;
-  passedCutsArrayLinReg[7]  = ((vetoNew.getEPAng() > 3) && (fiducial_ && vetoNew.getEPAng()  < 999) || (!fiducial_ )) ? true : false;
+  // // BDT based cutFlow here with linreg
+  // bool passedCutsArrayLinReg[8];
+  // std::fill(std::begin(passedCutsArrayLinReg), std::end(passedCutsArrayLinReg),false);
+  // passedCutsArrayLinReg[0]  = (trigResult.passed()) ? true : false;
+  // passedCutsArrayLinReg[1]  = ((fiducial_analysis_ && vetoNew.getFiducial()) || (!fiducial_analysis_ && !vetoNew.getFiducial())) ? true : false;
+  // passedCutsArrayLinReg[2]  = (vetoNew.getDisc() > 0.99741) ? true : false;
+  // passedCutsArrayLinReg[3]  = (vetoNew.getNStraightTracks() < 3) ? true : false;
+  // passedCutsArrayLinReg[4]  = (hcalVeto.passesVeto()) ? true : false;
+  // passedCutsArrayLinReg[5]  = (vetoNew.getNStraightTracks() == 0) ? true : false;
+  // passedCutsArrayLinReg[6]  = (vetoNew.getNLinRegTracks() == 0) ? true : false;
+  // passedCutsArrayLinReg[7]  = ((vetoNew.getEPAng() > 3) && (fiducial_analysis_ && vetoNew.getEPAng()  < 999) || (!fiducial_analysis_ )) ? true : false;
 
-  for (size_t i=0;i<sizeof(passedCutsArrayLinReg);i++) {
-    bool allCutsPassedSoFar = true;
-    for (size_t j=0;j<=i;j++) {
-      if (!passedCutsArrayLinReg[j]) {
-        allCutsPassedSoFar = false;
-        break;
-      }
-    }
-    if (allCutsPassedSoFar) {
-      histograms_.fill("LinRegCutFlow_RecoilX", i+1 , vetoNew.getRecoilX() );
-    }
-  }
+  // for (size_t i=0;i<sizeof(passedCutsArrayLinReg);i++) {
+  //   bool allCutsPassedSoFar = true;
+  //   for (size_t j=0;j<=i;j++) {
+  //     if (!passedCutsArrayLinReg[j]) {
+  //       allCutsPassedSoFar = false;
+  //       break;
+  //     }
+  //   }
+  //   if (allCutsPassedSoFar) {
+  //     histograms_.fill("LinRegCutFlow_RecoilX", i, vetoNew.getRecoilX() );
+  //   }
+  // }
 
-    // BDT based cutFlow here with linreg, starting with Hcal
-  bool passedCutsArrayLinRegHcal[6];
-  std::fill(std::begin(passedCutsArrayLinRegHcal), std::end(passedCutsArrayLinRegHcal),false);
-  passedCutsArrayLinRegHcal[0]  = (trigResult.passed()) ? true : false;
-  passedCutsArrayLinRegHcal[1]  = (hcalVeto.passesVeto()) ? true : false;
-  passedCutsArrayLinRegHcal[2]  = ((fiducial_ && vetoNew.getFiducial()) || (!fiducial_ && !vetoNew.getFiducial())) ? true : false;
-  passedCutsArrayLinRegHcal[3]  = (vetoNew.getDisc() > 0.99741) ? true : false;
-  passedCutsArrayLinRegHcal[4]  = (vetoNew.getNStraightTracks() == 0) ? true : false;
-  passedCutsArrayLinRegHcal[5]  = (vetoNew.getNLinRegTracks() == 0) ? true : false;
+  //   // BDT based cutFlow here with linreg, starting with Hcal
+  // bool passedCutsArrayLinRegHcal[6];
+  // std::fill(std::begin(passedCutsArrayLinRegHcal), std::end(passedCutsArrayLinRegHcal),false);
+  // passedCutsArrayLinRegHcal[0]  = (trigResult.passed()) ? true : false;
+  // passedCutsArrayLinRegHcal[1]  = (hcalVeto.passesVeto()) ? true : false;
+  // passedCutsArrayLinRegHcal[2]  = ((fiducial_analysis_ && vetoNew.getFiducial()) || (!fiducial_analysis_ && !vetoNew.getFiducial())) ? true : false;
+  // passedCutsArrayLinRegHcal[3]  = (vetoNew.getDisc() > 0.99741) ? true : false;
+  // passedCutsArrayLinRegHcal[4]  = (vetoNew.getNStraightTracks() == 0) ? true : false;
+  // passedCutsArrayLinRegHcal[5]  = (vetoNew.getNLinRegTracks() == 0) ? true : false;
 
 
-  for (size_t i=0;i<sizeof(passedCutsArrayLinRegHcal);i++) {
-    bool allCutsPassedSoFar = true;
-    for (size_t j=0;j<=i;j++) {
-      if (!passedCutsArrayLinRegHcal[j]) {
-        allCutsPassedSoFar = false;
-        break;
-      }
-    }
-    if (allCutsPassedSoFar) {
+  // for (size_t i=0;i<sizeof(passedCutsArrayLinRegHcal);i++) {
+  //   bool allCutsPassedSoFar = true;
+  //   for (size_t j=0;j<=i;j++) {
+  //     if (!passedCutsArrayLinRegHcal[j]) {
+  //       allCutsPassedSoFar = false;
+  //       break;
+  //     }
+  //   }
+  //   if (allCutsPassedSoFar) {
 
-      histograms_.fill("LinRegCutFlowHcal_RecoilX", i+1 , vetoNew.getRecoilX() );
-    }
-  }
+  //     histograms_.fill("LinRegCutFlowHcal_RecoilX", i, vetoNew.getRecoilX() );
+  //   }
+  // }
   // --------------------------------------------------------------------------
   // Calculate tracking variables if tracking is available
+  //std::cout << " Tracking variables = " << std::endl;
   float taggerP{0.0}; // Make sure this is in MeV!!
   int recoilN{0};
   float recoilD0{-9999.};
   float recoilZ0{-9999.};
-  if (acts_tracking_) {
-    // Start with tagger tracks
-    auto taggerN = taggerTrackCollection_->size();
-    if (taggerN == 1) {
-      for (auto& trk : *(taggerTrackCollection_)) {
-        auto QoP = trk.getQoP();
-        taggerP = 1000. / abs(QoP);
-      }
-    }
-
-    // Recoil tracks now
-    recoilN = recoilTrackCollection_->size();
-    if (recoilN == 1) {
-      for (auto& trk : *(recoilTrackCollection_)) {
-        recoilD0 = trk.getD0();
-        recoilZ0 = trk.getZ0();
-      }
+  // Start with tagger tracks
+  auto taggerN = taggerTrackCollection.size();
+  //std::cout << " taggerN = " << taggerN << std::endl;
+  if (taggerN == 1) {
+    for (const auto trk : taggerTrackCollection) {
+      auto QoP = trk.getQoP();
+      taggerP = 1000. / abs(QoP);
     }
   }
+
+  // Recoil tracks now
+  recoilN = recoilTrackCollection.size();
+  //std::cout << " recoilN = " << recoilN << std::endl;
+  if (recoilN == 1) {
+    for (const auto trk : recoilTrackCollection) {
+      recoilD0 = trk.getD0();
+      recoilZ0 = trk.getZ0();
+    }
+  }
+
   // --------------------------------------------------------------------------
   // BDT based cutFlow with tracking
-  histograms_.fill("TrackingCutFlow_RecoilX", 0 , vetoNew.getRecoilX() );
-  histograms_.fill("Tracking_TaggerP", 0 , taggerP);
-  histograms_.fill("Tracking_RecoilN", 0 , recoilN);
-  histograms_.fill("Tracking_RecoilD0", 0, recoilD0);
-  histograms_.fill("Tracking_RecoilZ0", 0 , recoilZ0);
-
-  bool passedCutsArrayTracking[11];
+  bool passedCutsArrayTracking[12];
   std::fill(std::begin(passedCutsArrayTracking), std::end(passedCutsArrayTracking),false);
-  passedCutsArrayTracking[0]  = (trigResult.passed()) ? true : false;
-  passedCutsArrayTracking[1]  = (taggerP > 5600) ? true : false;
-  passedCutsArrayTracking[2]  = (recoilN == 1) ? true : false;
-  passedCutsArrayTracking[3]  = (abs(recoilD0) < 10) ? true : false;
-  passedCutsArrayTracking[4]  = (abs(recoilZ0) < 40) ? true : false;
-  passedCutsArrayTracking[5]  = ((fiducial_ && vetoNew.getFiducial()) || (!fiducial_ && !vetoNew.getFiducial())) ? true : false;
-  passedCutsArrayTracking[6]  = (vetoNew.getDisc() > 0.99741) ? true : false;
-  passedCutsArrayTracking[7]  = (vetoNew.getNStraightTracks() < 3) ? true : false;
-  passedCutsArrayTracking[8]  = (hcalVeto.passesVeto()) ? true : false;
-  passedCutsArrayTracking[9]  = (vetoNew.getNStraightTracks() == 0) ? true : false;
-  passedCutsArrayTracking[10]  = ((vetoNew.getEPAng() > 3) && (fiducial_ && vetoNew.getEPAng()  < 999) || (!fiducial_ )) ? true : false;
+  passedCutsArrayTracking[0]  = (acceptance) ? true : false;
+  passedCutsArrayTracking[1]  = ((fiducial_analysis_ && vetoNew.getFiducial()) || (!fiducial_analysis_ && !vetoNew.getFiducial())) ? true : false;
+  passedCutsArrayTracking[2]  = (trigResult.passed()) ? true : false;
+  passedCutsArrayTracking[3]  = (taggerP > 5600) ? true : false;
+  passedCutsArrayTracking[4]  = (recoilN == 1) ? true : false;
+  passedCutsArrayTracking[5]  = (abs(recoilD0) < 10) ? true : false;
+  passedCutsArrayTracking[6]  = (abs(recoilZ0) < 40) ? true : false;
+  passedCutsArrayTracking[7]  = (vetoNew.getDisc() > 0.99741) ? true : false;
+  passedCutsArrayTracking[8]  = (vetoNew.getNStraightTracks() < 3) ? true : false;
+  passedCutsArrayTracking[9]  = (hcalVeto.passesVeto()) ? true : false;
+  passedCutsArrayTracking[10]  = (vetoNew.getNStraightTracks() == 0) ? true : false;
+  if (fiducial_analysis_) {
+    passedCutsArrayTracking[11]  = (vetoNew.getEPAng() > 3)  ? true : false;
+  } else {
+    passedCutsArrayTracking[11]  = true;
+  }
 
 
   for (size_t i=0;i<sizeof(passedCutsArrayTracking);i++) {
@@ -870,33 +814,32 @@ void CutBasedDM::analyze(const framework::Event& event) {
       }
     }
     if (allCutsPassedSoFar) {
-      histograms_.fill("TrackingCutFlow_RecoilX", i+1 , vetoNew.getRecoilX() );
-      histograms_.fill("Tracking_TaggerP", i+1 , taggerP);
-      histograms_.fill("Tracking_RecoilN", i+1 , recoilN);
-      histograms_.fill("Tracking_RecoilD0", i+1 , recoilD0);
-      histograms_.fill("Tracking_RecoilZ0", i+1 , recoilZ0);
+      histograms_.fill("TrackingCutFlow_RecoilX", i, vetoNew.getRecoilX() );
+      histograms_.fill("Tracking_TaggerP", i, taggerP);
+      histograms_.fill("Tracking_RecoilN", i, recoilN);
+      histograms_.fill("Tracking_RecoilD0", i, recoilD0);
+      histograms_.fill("Tracking_RecoilZ0", i, recoilZ0);
     }
   }
 
   // BDT based cutFlow with tracking starting with Hcal and Ecal veto
-  histograms_.fill("TrackingCutFlowHcal_RecoilX", 0 , vetoNew.getRecoilX() );
-  histograms_.fill("TrackingHcal_TaggerP", 0 , taggerP);
-  histograms_.fill("TrackingHcal_RecoilN", 0 , recoilN);
-  histograms_.fill("TrackingHcal_RecoilD0", 0 , recoilD0);
-  histograms_.fill("TrackingHcal_RecoilZ0", 0 , recoilZ0);
-
-  bool passedCutsArrayTrackingHcal[10];
+  bool passedCutsArrayTrackingHcal[11];
   std::fill(std::begin(passedCutsArrayTrackingHcal), std::end(passedCutsArrayTrackingHcal),false);
-  passedCutsArrayTrackingHcal[0]  = (trigResult.passed()) ? true : false;
-  passedCutsArrayTrackingHcal[1]  = (hcalVeto.passesVeto()) ? true : false;
-  passedCutsArrayTrackingHcal[2]  = ((fiducial_ && vetoNew.getFiducial()) || (!fiducial_ && !vetoNew.getFiducial())) ? true : false;
-  passedCutsArrayTrackingHcal[3]  = (vetoNew.getDisc() > 0.99741) ? true : false;
-  passedCutsArrayTrackingHcal[4]  = (vetoNew.getNStraightTracks() == 0) ? true : false;
-  passedCutsArrayTrackingHcal[5]  = ((vetoNew.getEPAng() > 3) && (fiducial_ && vetoNew.getEPAng()  < 999) || (!fiducial_ )) ? true : false;
-  passedCutsArrayTrackingHcal[6]  = (taggerP > 5600) ? true : false;
-  passedCutsArrayTrackingHcal[7]  = (recoilN == 1) ? true : false;
-  passedCutsArrayTrackingHcal[8]  = (abs(recoilD0) < 10) ? true : false;
-  passedCutsArrayTrackingHcal[9]  = (abs(recoilZ0) < 40) ? true : false;
+  passedCutsArrayTrackingHcal[0]  = (acceptance) ? true : false;
+  passedCutsArrayTrackingHcal[1]  = ((fiducial_analysis_ && vetoNew.getFiducial()) || (!fiducial_analysis_ && !vetoNew.getFiducial())) ? true : false;
+  passedCutsArrayTrackingHcal[2]  = (trigResult.passed()) ? true : false;
+  passedCutsArrayTrackingHcal[3]  = (hcalVeto.passesVeto()) ? true : false;
+  passedCutsArrayTrackingHcal[4]  = (vetoNew.getDisc() > 0.99741) ? true : false;
+  passedCutsArrayTrackingHcal[5]  = (vetoNew.getNStraightTracks() == 0) ? true : false;
+  if (fiducial_analysis_) {
+    passedCutsArrayTrackingHcal[6]  = ((vetoNew.getEPAng() > 3))  ? true : false;
+  } else {
+    passedCutsArrayTrackingHcal[6]  = true;
+  }
+  passedCutsArrayTrackingHcal[7]  = (taggerP > 5600) ? true : false;
+  passedCutsArrayTrackingHcal[8]  = (recoilN == 1) ? true : false;
+  passedCutsArrayTrackingHcal[9]  = (abs(recoilD0) < 10) ? true : false;
+  passedCutsArrayTrackingHcal[10]  = (abs(recoilZ0) < 40) ? true : false;
 
 
   for (size_t i=0;i<sizeof(passedCutsArrayTrackingHcal);i++) {
@@ -908,123 +851,103 @@ void CutBasedDM::analyze(const framework::Event& event) {
       }
     }
     if (allCutsPassedSoFar) {
-      histograms_.fill("TrackingCutFlowHcal_RecoilX", i+1 , vetoNew.getRecoilX() );
-      histograms_.fill("TrackingHcal_TaggerP", i+1 , taggerP);
-      histograms_.fill("TrackingHcal_RecoilN", i+1 , recoilN);
-      histograms_.fill("TrackingHcal_RecoilD0", i+1 , recoilD0);
-      histograms_.fill("TrackingHcal_RecoilZ0", i+1 , recoilZ0);
+      histograms_.fill("TrackingCutFlowHcal_RecoilX", i, vetoNew.getRecoilX() );
+      histograms_.fill("TrackingHcal_TaggerP", i, taggerP);
+      histograms_.fill("TrackingHcal_RecoilN", i, recoilN);
+      histograms_.fill("TrackingHcal_RecoilD0", i, recoilD0);
+      histograms_.fill("TrackingHcal_RecoilZ0", i, recoilZ0);
     }
   }
 
   // --------------------------------------------------------------------------
-   // Reverse cutflow, i.e. start with the last cut from the original cutflow
-histograms_.fill("Rev_AvgLayerHit", 0. , vetoNew.getAvgLayerHit() );
-histograms_.fill("Rev_DeepestLayerHit", 0. , vetoNew.getDeepestLayerHit() );
-histograms_.fill("Rev_EcalBackEnergy", 0. , vetoNew.getEcalBackEnergy() );
-histograms_.fill("Rev_EpAng", 0. , vetoNew.getEPAng() );
-histograms_.fill("Rev_EpSep", 0. , vetoNew.getEPSep() );
-histograms_.fill("Rev_FirstNearPhLayer", 0. , vetoNew.getFirstNearPhLayer() );
-histograms_.fill("Rev_MaxCellDep", 0. , vetoNew.getMaxCellDep() );
-histograms_.fill("Rev_NReadoutHits", 0. , vetoNew.getNReadoutHits() );
-histograms_.fill("Rev_StdLayerHit", 0. , vetoNew.getStdLayerHit() );
-histograms_.fill("Rev_Straight", 0. , vetoNew.getNStraightTracks() );
-histograms_.fill("Rev_LinRegNew", 0. , vetoNew.getNLinRegTracks() );
-histograms_.fill("Rev_SummedDet", 0. , vetoNew.getSummedDet() );
-histograms_.fill("Rev_SummedTightIso", 0. , vetoNew.getSummedTightIso() );
-histograms_.fill("Rev_ShowerRMS", 0. , vetoNew.getShowerRMS() );
-histograms_.fill("Rev_XStd", 0. , vetoNew.getXStd() );
-histograms_.fill("Rev_YStd", 0. , vetoNew.getYStd() );
-histograms_.fill("Rev_Hcal_MaxPE", 0. , hcalMaxPE );
-histograms_.fill("Rev_Hcal_TotalPE", 0. , hcalTotalPe );
-histograms_.fill("Rev_Hcal_MaxTiming", 0. , hcalMaxTiming );
-histograms_.fill("Rev_Hcal_MaxSector", 0. , hcalMaxSector );
+  // Reverse cutflow, i.e. start with the last cut from the original cutflow
+  bool passedCutsArrayReverse[13];
+  std::fill(std::begin(passedCutsArrayReverse), std::end(passedCutsArrayReverse),false);
+  passedCutsArrayReverse[0]  = (acceptance) ? true : false;
+  passedCutsArrayReverse[1]  = ((fiducial_analysis_ && vetoNew.getFiducial()) || (!fiducial_analysis_ && !vetoNew.getFiducial())) ? true : false;
+  passedCutsArrayReverse[2]  = (trigResult.passed()) ? true : false;
+  passedCutsArrayReverse[3]  = (hcalVeto.passesVeto()) ? true : false;
+  passedCutsArrayReverse[4]  = (vetoNew.getNStraightTracks() < 3) ? true : false;
+  passedCutsArrayReverse[5]  = (vetoNew.getStdLayerHit() < 5) ? true : false;
+  passedCutsArrayReverse[6]  = (vetoNew.getMaxCellDep() < 300) ? true : false;
+  passedCutsArrayReverse[7]  = (vetoNew.getYStd() < 70) ? true : false;
+  passedCutsArrayReverse[8]  = (vetoNew.getShowerRMS() < 110) ? true : false;
+  passedCutsArrayReverse[9]  = (vetoNew.getNReadoutHits() < 70) ? true : false;
+  passedCutsArrayReverse[10]  = (vetoNew.getEcalBackEnergy() < 250) ? true : false;
+  passedCutsArrayReverse[11]  = (vetoNew.getSummedTightIso() < 800) ? true : false;
+  passedCutsArrayReverse[12]  = (vetoNew.getSummedDet() < 3500) ? true : false;
 
-bool passedCutsArrayReverse[12];
-std::fill(std::begin(passedCutsArrayReverse), std::end(passedCutsArrayReverse),false);
-passedCutsArrayReverse[0]  = (trigResult.passed()) ? true : false;
-passedCutsArrayReverse[1]  = (hcalVeto.passesVeto()) ? true : false;
-passedCutsArrayReverse[2]  = (vetoNew.getNStraightTracks() < 3) ? true : false;
-passedCutsArrayReverse[3]  = (vetoNew.getStdLayerHit() < 5) ? true : false;
-passedCutsArrayReverse[4]  = (vetoNew.getMaxCellDep() < 300) ? true : false;
-passedCutsArrayReverse[5]  = (vetoNew.getYStd() < 70) ? true : false;
-passedCutsArrayReverse[6]  = (vetoNew.getShowerRMS() < 110) ? true : false;
-passedCutsArrayReverse[7]  = (vetoNew.getNReadoutHits() < 70) ? true : false;
-passedCutsArrayReverse[8]  = (vetoNew.getEcalBackEnergy() < 250) ? true : false;
-passedCutsArrayReverse[9]  = (vetoNew.getSummedTightIso() < 800) ? true : false;
-passedCutsArrayReverse[10]  = (vetoNew.getSummedDet() < 3500) ? true : false;
-passedCutsArrayReverse[11]  = ((fiducial_ && vetoNew.getFiducial()) || (!fiducial_ && !vetoNew.getFiducial())) ? true : false;
-
-for (size_t i=0;i<sizeof(passedCutsArrayReverse);i++) {
-  bool allCutsPassedSoFar = true;
-  for (size_t j=0;j<=i;j++) {
-    if (!passedCutsArrayReverse[j]) {
-      allCutsPassedSoFar = false;
+  for (size_t i=0;i<sizeof(passedCutsArrayReverse);i++) {
+    bool allCutsPassedSoFar = true;
+    for (size_t j=0;j<=i;j++) {
+      if (!passedCutsArrayReverse[j]) {
+        allCutsPassedSoFar = false;
+      }
+    }
+    if (allCutsPassedSoFar) {
+      histograms_.fill("Rev_AvgLayerHit", i, vetoNew.getAvgLayerHit() );
+      histograms_.fill("Rev_DeepestLayerHit", i, vetoNew.getDeepestLayerHit() );
+      histograms_.fill("Rev_EcalBackEnergy", i, vetoNew.getEcalBackEnergy() );
+      histograms_.fill("Rev_EpAng", i, vetoNew.getEPAng() );
+      histograms_.fill("Rev_EpSep", i, vetoNew.getEPSep() );
+      histograms_.fill("Rev_FirstNearPhLayer", i, vetoNew.getFirstNearPhLayer() );
+      histograms_.fill("Rev_MaxCellDep", i, vetoNew.getMaxCellDep() );
+      histograms_.fill("Rev_NReadoutHits", i, vetoNew.getNReadoutHits() );
+      histograms_.fill("Rev_StdLayerHit", i, vetoNew.getStdLayerHit() );
+      histograms_.fill("Rev_Straight", i, vetoNew.getNStraightTracks() );
+      // histograms_.fill("Rev_LinRegNew", i, vetoNew.getNLinRegTracks() );
+      histograms_.fill("Rev_SummedDet", i, vetoNew.getSummedDet() );
+      histograms_.fill("Rev_SummedTightIso", i, vetoNew.getSummedTightIso() );
+      histograms_.fill("Rev_ShowerRMS", i, vetoNew.getShowerRMS() );
+      histograms_.fill("Rev_XStd", i, vetoNew.getXStd() );
+      histograms_.fill("Rev_YStd", i, vetoNew.getYStd() );
+      histograms_.fill("Rev_Hcal_MaxPE", i, hcalMaxPE );
+      histograms_.fill("Rev_Hcal_TotalPE", i, hcalTotalPe );
+      histograms_.fill("Rev_Hcal_MaxTiming", i, hcalMaxTiming );
+      histograms_.fill("Rev_Hcal_MaxSector", i, hcalMaxSector );
     }
   }
-  if (allCutsPassedSoFar) {
-    histograms_.fill("Rev_AvgLayerHit", i+1 , vetoNew.getAvgLayerHit() );
-    histograms_.fill("Rev_DeepestLayerHit", i+1 , vetoNew.getDeepestLayerHit() );
-    histograms_.fill("Rev_EcalBackEnergy", i+1 , vetoNew.getEcalBackEnergy() );
-    histograms_.fill("Rev_EpAng", i+1 , vetoNew.getEPAng() );
-    histograms_.fill("Rev_EpSep", i+1 , vetoNew.getEPSep() );
-    histograms_.fill("Rev_FirstNearPhLayer", i+1 , vetoNew.getFirstNearPhLayer() );
-    histograms_.fill("Rev_MaxCellDep", i+1 , vetoNew.getMaxCellDep() );
-    histograms_.fill("Rev_NReadoutHits", i+1 , vetoNew.getNReadoutHits() );
-    histograms_.fill("Rev_StdLayerHit", i+1 , vetoNew.getStdLayerHit() );
-    histograms_.fill("Rev_Straight", i+1 , vetoNew.getNStraightTracks() );
-    histograms_.fill("Rev_LinRegNew", i+1 , vetoNew.getNLinRegTracks() );
-    histograms_.fill("Rev_SummedDet", i+1 , vetoNew.getSummedDet() );
-    histograms_.fill("Rev_SummedTightIso", i+1 , vetoNew.getSummedTightIso() );
-    histograms_.fill("Rev_ShowerRMS", i+1 , vetoNew.getShowerRMS() );
-    histograms_.fill("Rev_XStd", i+1 , vetoNew.getXStd() );
-    histograms_.fill("Rev_YStd", i+1 , vetoNew.getYStd() );
-    histograms_.fill("Rev_Hcal_MaxPE", i+1. , hcalMaxPE );
-    histograms_.fill("Rev_Hcal_TotalPE", i+1. , hcalTotalPe );
-    histograms_.fill("Rev_Hcal_MaxTiming", i+1. , hcalMaxTiming );
-    histograms_.fill("Rev_Hcal_MaxSector", i+1. , hcalMaxSector );
-  }
-}
   
-// N-1 plots
-// << "      >> Doing N1 plots";
-// i=0 is trigger, i=1 is fiducial
- for (size_t i=2;i<sizeof(passedCutsArrayCnC);i++) {
-   bool allOtherCutsPassed = true;
-   for (size_t j=2;j<sizeof(passedCutsArrayCnC);j++) {
-     if (i==j) continue;
-     if (!passedCutsArrayCnC[j]) {
-       allOtherCutsPassed = false;
-         // We found a cut that's not passed, no point in looking into the rest of them
-       break;
-     }
-   }
+    // // N-1 plots
+    // // << "      >> Doing N1 plots";
+    // // i=0 is trigger, i=1 is fiducial
+    //  for (size_t i=2;i<sizeof(passedCutsArrayCnC);i++) {
+    //    bool allOtherCutsPassed = true;
+    //    for (size_t j=2;j<sizeof(passedCutsArrayCnC);j++) {
+    //      if (i==j) continue;
+    //      if (!passedCutsArrayCnC[j]) {
+    //        allOtherCutsPassed = false;
+    //          // We found a cut that's not passed, no point in looking into the rest of them
+    //        break;
+    //      }
+    //    }
 
-   if (allOtherCutsPassed && trigResult.passed() && ((fiducial_ && vetoNew.getFiducial()) || (!fiducial_ && !vetoNew.getFiducial()))) {
-    if (i==2) histograms_.fill("N1_SummedDet", i+1 , vetoNew.getSummedDet() );
-    if (i==3) histograms_.fill("N1_SummedTightIso", i+1 , vetoNew.getSummedTightIso() );
-    if (i==4) histograms_.fill("N1_EcalBackEnergy", i+1 , vetoNew.getEcalBackEnergy() );
-    if (i==5) histograms_.fill("N1_NReadoutHits", i+1 , vetoNew.getNReadoutHits() );
-    if (i==6) histograms_.fill("N1_ShowerRMS", i+1 , vetoNew.getShowerRMS() );
-    if (i==7) histograms_.fill("N1_YStd", i+1 , vetoNew.getYStd() );
-    if (i==8) histograms_.fill("N1_MaxCellDep", i+1 , vetoNew.getMaxCellDep() );
-    if (i==9) histograms_.fill("N1_StdLayerHit", i+1 , vetoNew.getStdLayerHit() );
-    if (i==10) histograms_.fill("N1_Straight", i+1 , vetoNew.getNStraightTracks() );
-    if (i==11) {
-      histograms_.fill("N1_Hcal_MaxPE", i+1. , hcalMaxPE );
-      histograms_.fill("N1_Hcal_TotalPE", i+1. , hcalTotalPe );
-      histograms_.fill("N1_Hcal_MaxTiming", i+1. , hcalMaxTiming );
-      histograms_.fill("N1_Hcal_MaxSector", i+1. , hcalMaxSector );
-    }
+    //    if (allOtherCutsPassed && trigResult.passed() && ((fiducial_analysis_ && vetoNew.getFiducial()) || (!fiducial_analysis_ && !vetoNew.getFiducial()))) {
+    //     if (i==2) histograms_.fill("N1_SummedDet", i, vetoNew.getSummedDet() );
+    //     if (i==3) histograms_.fill("N1_SummedTightIso", i, vetoNew.getSummedTightIso() );
+    //     if (i==4) histograms_.fill("N1_EcalBackEnergy", i, vetoNew.getEcalBackEnergy() );
+    //     if (i==5) histograms_.fill("N1_NReadoutHits", i, vetoNew.getNReadoutHits() );
+    //     if (i==6) histograms_.fill("N1_ShowerRMS", i, vetoNew.getShowerRMS() );
+    //     if (i==7) histograms_.fill("N1_YStd", i, vetoNew.getYStd() );
+    //     if (i==8) histograms_.fill("N1_MaxCellDep", i, vetoNew.getMaxCellDep() );
+    //     if (i==9) histograms_.fill("N1_StdLayerHit", i, vetoNew.getStdLayerHit() );
+    //     if (i==10) histograms_.fill("N1_Straight", i, vetoNew.getNStraightTracks() );
+    //     if (i==11) {
+    //       histograms_.fill("N1_Hcal_MaxPE", i, hcalMaxPE );
+    //       histograms_.fill("N1_Hcal_TotalPE", i, hcalTotalPe );
+    //       histograms_.fill("N1_Hcal_MaxTiming", i, hcalMaxTiming );
+    //       histograms_.fill("N1_Hcal_MaxSector", i, hcalMaxSector );
+    //     }
     
-    // histograms_.fill("N1_LinRegNew", i+1 , vetoNew.getNLinRegTracks() );
-    // histograms_.fill("N1_EpAng", i+1 , vetoNew.getEPAng() );
-    // histograms_.fill("N1_EpSep", i+1 , vetoNew.getEPSep() );
-    // histograms_.fill("N1_FirstNearPhLayer", i+1 , vetoNew.getFirstNearPhLayer() );
-    // histograms_.fill("N1_XStd", i+1 , vetoNew.getXStd() );
-    // histograms_.fill("N1_AvgLayerHit", i+1 , vetoNew.getAvgLayerHit() );
-    // histograms_.fill("N1_DeepestLayerHit", i+1 , vetoNew.getDeepestLayerHit() );
-   }
- }
+    // histograms_.fill("N1_LinRegNew", i, vetoNew.getNLinRegTracks() );
+    // histograms_.fill("N1_EpAng", i, vetoNew.getEPAng() );
+    // histograms_.fill("N1_EpSep", i, vetoNew.getEPSep() );
+    // histograms_.fill("N1_FirstNearPhLayer", i, vetoNew.getFirstNearPhLayer() );
+    // histograms_.fill("N1_XStd", i, vetoNew.getXStd() );
+    // histograms_.fill("N1_AvgLayerHit", i, vetoNew.getAvgLayerHit() );
+    // histograms_.fill("N1_DeepestLayerHit", i, vetoNew.getDeepestLayerHit() );
+  //  }
+  // }
 }
 
 template <typename T, size_t n>
