@@ -16,6 +16,7 @@ from LDMX.Recon.fiducialFlag import RecoilFiducialityProcessor
 
 p.maxEvents = -1
 p.run = 1
+p.skipCorruptedInputFiles = True
 
 # p.inputFiles = [f'events.root']
 #p.inputFiles  = ["/Users/tav/Documents/1Research/LDMX/CutBasedDM/mc_v14-8gev-8.0GeV-1e-ecal_photonuclear_run24515_t1703519903_trigSkim.root"]
@@ -24,8 +25,8 @@ print("Input files = ", p.inputFiles)
 #p.inputFiles = [f'signalIn.root']
 #p.inputFiles = [f'ecalPnIn.root']
 #p.histogramFile = fileName[:-5] + "_histo_v4_nonfid.root"
-p.histogramFile = "/fs/ddn/sdf/group/ldmx/data/user.tamasvami/CutBasedDM/"  + str(fileName.split('/')[-2]) + "/" + str(fileName.split('/')[-1][:-5]) + "_histo_v15.root"
-# p.histogramFile  = str(fileName.split('/')[-1][:-5]) + "_histo_v15.root"
+p.histogramFile = "/sdf/group/ldmx/users/tamasvami/CutBasedDM/"  + str(fileName.split('/')[-2]) + "/" + str(fileName.split('/')[-1][:-5]) + "_histo_v16.root"
+# p.histogramFile  = str(fileName.split('/')[-1][:-5]) + "_histo_v16.root"
 print("Histogram output = ", p.histogramFile)
 #p.termLogLevel = 0
 
@@ -41,9 +42,10 @@ if "signal" in fileName:
 #Ecal vetos
 ecalVeto = vetos.EcalVetoProcessor()
 ecalVeto.collection_name= 'EcalVetoNew'
+ecalVeto.recoil_from_tracking = True
 
 # HCAL veto
-hcalVeto   =hcal.HcalVetoProcessor('hcalVeto')
+hcalVeto   = hcal.HcalVetoProcessor('hcalVeto')
 
 # Trigger
 trigger = TriggerProcessor('Trigger', 8000.)
@@ -54,6 +56,7 @@ CutBasedAna.fiducial_analysis = True
 CutBasedAna.trigger_name = "Trigger"
 CutBasedAna.trigger_pass = "cutbased"
 CutBasedAna.signal = signal
+CutBasedAna.ignore_fiducial_analysis = False
 
 p.sequence = []
 
@@ -71,19 +74,18 @@ track_sqs_1 = [
 track_sqs_2 = [
     full_tracking_sequence.tracking_tagger,
     full_tracking_sequence.tracking_recoil,
-    full_tracking_sequence.greedy_solver_tagger,
-    full_tracking_sequence.greedy_solver_recoil,
+    # full_tracking_sequence.greedy_solver_tagger,
+    # full_tracking_sequence.greedy_solver_recoil,
     # full_tracking_sequence.GSF_tagger,
     # full_tracking_sequence.GSF_recoil
 ]
 
 p.logger.custom("TruthSeedProcessor", level = 10)
+# p.logger.custom(ecalVeto, level = 10)
 p.logFrequency = 1000
 
 for seq in track_sqs_2:
     seq.input_pass_name = "cutbased"
-    seq.input_pass_name = "cutbased"
-
 
 p.sequence.extend(track_sqs_1)
 p.sequence.extend(track_sqs_2)

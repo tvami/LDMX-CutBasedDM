@@ -28,6 +28,7 @@
 // v13: Add new cutflow with lin-reg, together with HCAL as start
 // v14: Have 34 layers, add tracking plots
 // v15: Acceptance plot, and add Acceptance to all cutflows
+// v16: Add ignore_fiducial_analysis_, move to recoil from tracking
 
 class CutBasedDM : public framework::Analyzer {
 public:
@@ -49,6 +50,7 @@ public:
   // std::string tagger_track_collection_;
   // std::string recoil_track_collection_;
   bool fiducial_analysis_;
+  bool ignore_fiducial_analysis_;
   bool signal_;
 };
 
@@ -57,6 +59,7 @@ void CutBasedDM::configure(framework::config::Parameters &ps) {
   trigger_collName_ = ps.getParameter<std::string>("trigger_name");
   trigger_passName_ = ps.getParameter<std::string>("trigger_pass");
   fiducial_analysis_ = ps.getParameter<bool>("fiducial_analysis");
+  ignore_fiducial_analysis_ = ps.getParameter<bool>("ignore_fiducial_analysis");
   signal_ = ps.getParameter<bool>("signal", true);
 
   return;
@@ -539,12 +542,15 @@ void CutBasedDM::analyze(const framework::Event& event) {
   histograms_.fill("TrigEffVsMissingE", trigResult.passed() , 8000.-vetoNew.getSummedDet() );
   histograms_.fill("TrigEffVsRecoilPTAtTarget", trigResult.passed() , pTAtTarget );
 
+
+  // std::cout << "Fiducial = " << vetoNew.getFiducial() << std::endl;
+
   // CutFlow here
   bool passedCutsArrayCnC[13];
   //std::cout << " CnC cutflow = " << std::endl;
   std::fill(std::begin(passedCutsArrayCnC), std::end(passedCutsArrayCnC),false);
   passedCutsArrayCnC[0]  = (acceptance) ? true : false;
-  passedCutsArrayCnC[1]  = ((fiducial_analysis_ && vetoNew.getFiducial()) || (!fiducial_analysis_ && !vetoNew.getFiducial())) ? true : false;
+  passedCutsArrayCnC[1]  = (ignore_fiducial_analysis_ || (fiducial_analysis_ && vetoNew.getFiducial()) || (!fiducial_analysis_ && !vetoNew.getFiducial())) ? true : false;
   passedCutsArrayCnC[2]  = (trigResult.passed()) ? true : false;
   passedCutsArrayCnC[3]  = (vetoNew.getSummedDet() < 3500) ? true : false;
   passedCutsArrayCnC[4]  = (vetoNew.getSummedTightIso() < 800) ? true : false;
@@ -649,7 +655,7 @@ void CutBasedDM::analyze(const framework::Event& event) {
   //std::cout << " Alternative cutFlow here " << std::endl;
   std::fill(std::begin(passedCutsArrayAlt), std::end(passedCutsArrayAlt),false);
   passedCutsArrayAlt[0]  = (acceptance) ? true : false;
-  passedCutsArrayAlt[1]  = ((fiducial_analysis_ && vetoNew.getFiducial()) || (!fiducial_analysis_ && !vetoNew.getFiducial())) ? true : false;
+  passedCutsArrayAlt[1]  = (ignore_fiducial_analysis_ || (fiducial_analysis_ && vetoNew.getFiducial()) || (!fiducial_analysis_ && !vetoNew.getFiducial())) ? true : false;
   passedCutsArrayAlt[2]  = (trigResult.passed()) ? true : false;
   passedCutsArrayAlt[3]  = (vetoNew.getSummedDet() < 3500) ? true : false;
   passedCutsArrayAlt[4]  = (vetoNew.getSummedTightIso() < 800) ? true : false;
@@ -671,6 +677,21 @@ void CutBasedDM::analyze(const framework::Event& event) {
       }
     }
     if (allCutsPassedSoFar) {
+      // std::cout 
+      //   << " i-th cut = " << i 
+      //   << " trigger = " << trigResult.passed() 
+      //   << " getRecoilX = " << vetoNew.getRecoilX() 
+      //   << " getSummedDet = " << vetoNew.getSummedDet()
+      //   << " getSummedTightIso = " << vetoNew.getSummedTightIso() 
+      //   << " getEcalBackEnergy = " << vetoNew.getEcalBackEnergy() 
+      //   << " getNReadoutHits = " << vetoNew.getNReadoutHits()
+      //   << " getShowerRMS = " << vetoNew.getShowerRMS()
+      //   << " getYStd = " << vetoNew.getYStd()
+      //   << " getMaxCellDep = " << vetoNew.getMaxCellDep()
+      //   << " getStdLayerHit = " << vetoNew.getStdLayerHit()
+      //   << " getNStraightTracks = " << vetoNew.getNStraightTracks()
+      //   << " hcalVeto = " << hcalVeto.passesVeto() << std::endl;
+      // std::cout << "hcalMaxPE = " <<  hcalMaxPE << " hcal total" << hcalTotalPe <<  " maxTime = " << hcalMaxTiming << " where = " << hcalMaxSector << std::endl;
       histograms_.fill("AltCutFlow_RecoilX", i, vetoNew.getRecoilX() );
     }
   }
@@ -680,7 +701,7 @@ void CutBasedDM::analyze(const framework::Event& event) {
   //std::cout << " BDT cutFlow here " << std::endl;
   std::fill(std::begin(passedCutsArrayBDT), std::end(passedCutsArrayBDT),false);
   passedCutsArrayBDT[0]  = (acceptance) ? true : false;
-  passedCutsArrayBDT[1]  = ((fiducial_analysis_ && vetoNew.getFiducial()) || (!fiducial_analysis_ && !vetoNew.getFiducial())) ? true : false;
+  passedCutsArrayBDT[1]  = (ignore_fiducial_analysis_ || (fiducial_analysis_ && vetoNew.getFiducial()) || (!fiducial_analysis_ && !vetoNew.getFiducial())) ? true : false;
   passedCutsArrayBDT[2]  = (trigResult.passed()) ? true : false;
   passedCutsArrayBDT[3]  = (vetoNew.getDisc() > 0.99741) ? true : false;
   passedCutsArrayBDT[4]  = (vetoNew.getNStraightTracks() < 3) ? true : false;
@@ -788,7 +809,7 @@ void CutBasedDM::analyze(const framework::Event& event) {
   bool passedCutsArrayTracking[12];
   std::fill(std::begin(passedCutsArrayTracking), std::end(passedCutsArrayTracking),false);
   passedCutsArrayTracking[0]  = (acceptance) ? true : false;
-  passedCutsArrayTracking[1]  = ((fiducial_analysis_ && vetoNew.getFiducial()) || (!fiducial_analysis_ && !vetoNew.getFiducial())) ? true : false;
+  passedCutsArrayTracking[1]  = (ignore_fiducial_analysis_ || (fiducial_analysis_ && vetoNew.getFiducial()) || (!fiducial_analysis_ && !vetoNew.getFiducial())) ? true : false;
   passedCutsArrayTracking[2]  = (trigResult.passed()) ? true : false;
   passedCutsArrayTracking[3]  = (taggerP > 5600) ? true : false;
   passedCutsArrayTracking[4]  = (recoilN == 1) ? true : false;
@@ -826,7 +847,7 @@ void CutBasedDM::analyze(const framework::Event& event) {
   bool passedCutsArrayTrackingHcal[11];
   std::fill(std::begin(passedCutsArrayTrackingHcal), std::end(passedCutsArrayTrackingHcal),false);
   passedCutsArrayTrackingHcal[0]  = (acceptance) ? true : false;
-  passedCutsArrayTrackingHcal[1]  = ((fiducial_analysis_ && vetoNew.getFiducial()) || (!fiducial_analysis_ && !vetoNew.getFiducial())) ? true : false;
+  passedCutsArrayTrackingHcal[1]  = (ignore_fiducial_analysis_ || (fiducial_analysis_ && vetoNew.getFiducial()) || (!fiducial_analysis_ && !vetoNew.getFiducial())) ? true : false;
   passedCutsArrayTrackingHcal[2]  = (trigResult.passed()) ? true : false;
   passedCutsArrayTrackingHcal[3]  = (hcalVeto.passesVeto()) ? true : false;
   passedCutsArrayTrackingHcal[4]  = (vetoNew.getDisc() > 0.99741) ? true : false;
@@ -864,7 +885,7 @@ void CutBasedDM::analyze(const framework::Event& event) {
   bool passedCutsArrayReverse[13];
   std::fill(std::begin(passedCutsArrayReverse), std::end(passedCutsArrayReverse),false);
   passedCutsArrayReverse[0]  = (acceptance) ? true : false;
-  passedCutsArrayReverse[1]  = ((fiducial_analysis_ && vetoNew.getFiducial()) || (!fiducial_analysis_ && !vetoNew.getFiducial())) ? true : false;
+  passedCutsArrayReverse[1]  = (ignore_fiducial_analysis_ || (fiducial_analysis_ && vetoNew.getFiducial()) || (!fiducial_analysis_ && !vetoNew.getFiducial())) ? true : false;
   passedCutsArrayReverse[2]  = (trigResult.passed()) ? true : false;
   passedCutsArrayReverse[3]  = (hcalVeto.passesVeto()) ? true : false;
   passedCutsArrayReverse[4]  = (vetoNew.getNStraightTracks() < 3) ? true : false;
