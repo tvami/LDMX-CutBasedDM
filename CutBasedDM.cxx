@@ -47,10 +47,13 @@ public:
     const std::map<int, ldmx::SimParticle> &particleMap);
   std::string trigger_collName_;
   std::string trigger_passName_;
+  std::string sp_pass_name_;
+  std::string track_pass_name_;
   // std::string tagger_track_collection_;
   // std::string recoil_track_collection_;
   bool fiducial_analysis_;
   bool ignore_fiducial_analysis_;
+  bool ignore_tagger_analysis_;
   bool signal_;
 };
 
@@ -58,8 +61,11 @@ public:
 void CutBasedDM::configure(framework::config::Parameters &ps) {
   trigger_collName_ = ps.getParameter<std::string>("trigger_name");
   trigger_passName_ = ps.getParameter<std::string>("trigger_pass");
+  sp_pass_name_ = ps.getParameter<std::string>("sp_pass_name");
+  track_pass_name_ = ps.getParameter<std::string>("track_pass_name","");
   fiducial_analysis_ = ps.getParameter<bool>("fiducial_analysis");
   ignore_fiducial_analysis_ = ps.getParameter<bool>("ignore_fiducial_analysis");
+  ignore_tagger_analysis_ = ps.getParameter<bool>("ignore_tagger_analysis",false);
   signal_ = ps.getParameter<bool>("signal", true);
 
   return;
@@ -250,7 +256,7 @@ void CutBasedDM::onProcessStart(){
   // setHistLabels("N1_Hcal_MaxPE", labels);
   // setHistLabels("N1_Hcal_MaxTiming", labels);
   // setHistLabels("N1_Hcal_MaxSector", labels);
-
+  
   std::vector<std::string> labels_Rev = {
     "All / Acceptance",      // 0
     "Fiducial",              // 1
@@ -432,8 +438,11 @@ void CutBasedDM::analyze(const framework::Event& event) {
   auto trigResult{event.getObject<ldmx::TriggerResult>(trigger_collName_, trigger_passName_)};
   auto hcalVeto{event.getObject<ldmx::HcalVetoResult>("HcalVeto","cutbased")};
   auto hcalRecHits{event.getCollection<ldmx::HcalHit>("HcalRecHits", "")};
-  auto targetSpHits{event.getCollection<ldmx::SimTrackerHit>("TargetScoringPlaneHits")};
-  auto taggerTrackCollection{event.getCollection<ldmx::Track>("TaggerTracks","cutbased")};
+  auto targetSpHits{event.getCollection<ldmx::SimTrackerHit>("TargetScoringPlaneHits",sp_pass_name_)};
+  std::vector<ldmx::Track> taggerTrackCollection;
+  if (!ignore_tagger_analysis_) {
+    auto taggerTrackCollection{event.getCollection<ldmx::Track>("TaggerTracks","cutbased")};
+  }
   auto recoilTrackCollection{event.getCollection<ldmx::Track>("RecoilTracks","cutbased")};
 
   bool acceptance{true};
@@ -811,7 +820,7 @@ void CutBasedDM::analyze(const framework::Event& event) {
   passedCutsArrayTracking[0]  = (acceptance) ? true : false;
   passedCutsArrayTracking[1]  = (ignore_fiducial_analysis_ || (fiducial_analysis_ && vetoNew.getFiducial()) || (!fiducial_analysis_ && !vetoNew.getFiducial())) ? true : false;
   passedCutsArrayTracking[2]  = (trigResult.passed()) ? true : false;
-  passedCutsArrayTracking[3]  = (taggerP > 5600) ? true : false;
+  passedCutsArrayTracking[3]  = (ignore_tagger_analysis_ || (taggerP > 5600)) ? true : false;
   passedCutsArrayTracking[4]  = (recoilN == 1) ? true : false;
   passedCutsArrayTracking[5]  = (abs(recoilD0) < 10) ? true : false;
   passedCutsArrayTracking[6]  = (abs(recoilZ0) < 40) ? true : false;
