@@ -29,6 +29,7 @@
 // v14: Have 34 layers, add tracking plots
 // v15: Acceptance plot, and add Acceptance to all cutflows
 // v16: Add ignore_fiducial_analysis_, move to recoil from tracking
+// v17: Running on resim sample, 17b adding HCAL plots, print out for surviving everything
 
 class CutBasedDM : public framework::Analyzer {
 public:
@@ -50,7 +51,7 @@ public:
   std::string sp_pass_name_;
   std::string track_pass_name_;
   // std::string tagger_track_collection_;
-  // std::string recoil_track_collection_;
+  std::string recoil_track_collection_;
   bool fiducial_analysis_;
   bool ignore_fiducial_analysis_;
   bool ignore_tagger_analysis_;
@@ -63,6 +64,7 @@ void CutBasedDM::configure(framework::config::Parameters &ps) {
   trigger_passName_ = ps.getParameter<std::string>("trigger_pass");
   sp_pass_name_ = ps.getParameter<std::string>("sp_pass_name");
   track_pass_name_ = ps.getParameter<std::string>("track_pass_name","");
+  recoil_track_collection_ = ps.getParameter<std::string>("recoil_track_collection","");
   fiducial_analysis_ = ps.getParameter<bool>("fiducial_analysis");
   ignore_fiducial_analysis_ = ps.getParameter<bool>("ignore_fiducial_analysis");
   ignore_tagger_analysis_ = ps.getParameter<bool>("ignore_tagger_analysis",false);
@@ -125,7 +127,9 @@ void CutBasedDM::onProcessStart(){
 
 
   histograms_.create("Hcal_MaxPE", "", 20, -0.5, 19.5, "HCAL max photo-electron hits", 65, -0.5, 64.5);
+  histograms_.create("Hcal_MaxPE_Extended", "", 20, -0.5, 19.5, "HCAL max photo-electron hits", 120, -0.5, 600.5);
   histograms_.create("Hcal_TotalPE", "", 20, -0.5, 19.5, "HCAL total photo-electron hits", 100, -0.5, 200.5);
+  histograms_.create("Hcal_TotalPE_AboveMax8PE", "", 20, -0.5, 19.5, "HCAL total photo-electron hits (for MaxPE > 8)", 200, -0.5, 400.5);
   histograms_.create("Hcal_MaxTiming", "", 20, -0.5, 19.5, "HCAL timing of the max PE hit", 35, 0.0, 35.0);
   histograms_.create("Hcal_MaxSector", "", 20, -0.5, 19.5, "", 5, -0.5, 4.5);
 
@@ -240,7 +244,9 @@ void CutBasedDM::onProcessStart(){
   setHistLabels("RecoilTheta", labels);
   setHistLabels("RecoilPhi", labels);
   setHistLabels("Hcal_MaxPE", labels);
+  setHistLabels("Hcal_MaxPE_Extended", labels);
   setHistLabels("Hcal_TotalPE", labels);
+  setHistLabels("Hcal_TotalPE_AboveMax8PE", labels);
   setHistLabels("Hcal_MaxTiming", labels);
   setHistLabels("Hcal_MaxSector", labels);
 
@@ -430,7 +436,7 @@ void CutBasedDM::onProcessStart(){
   setHistLabels("TrackingHcal_RecoilD0",labels_TrackingCutFlowHcal);
   setHistLabels("TrackingHcal_RecoilZ0",labels_TrackingCutFlowHcal);
 
-}
+} 
 
 void CutBasedDM::analyze(const framework::Event& event) {
   //std::cout << " ---------------------------------------------" << std::endl;
@@ -439,11 +445,11 @@ void CutBasedDM::analyze(const framework::Event& event) {
   auto hcalVeto{event.getObject<ldmx::HcalVetoResult>("HcalVeto","cutbased")};
   auto hcalRecHits{event.getCollection<ldmx::HcalHit>("HcalRecHits", "")};
   auto targetSpHits{event.getCollection<ldmx::SimTrackerHit>("TargetScoringPlaneHits",sp_pass_name_)};
+  auto recoilTrackCollection{event.getCollection<ldmx::Track>(recoil_track_collection_)};
   std::vector<ldmx::Track> taggerTrackCollection;
   if (!ignore_tagger_analysis_) {
-    auto taggerTrackCollection{event.getCollection<ldmx::Track>("TaggerTracks","cutbased")};
+    taggerTrackCollection = event.getCollection<ldmx::Track>("TaggerTracks","cutbased");
   }
-  auto recoilTrackCollection{event.getCollection<ldmx::Track>("RecoilTracks","cutbased")};
 
   bool acceptance{true};
   int fiducial_analysis_flag{-1};
@@ -503,6 +509,7 @@ void CutBasedDM::analyze(const framework::Event& event) {
   float hcalMaxTiming{-9999};
   int hcalMaxSector{-1};
   float hcalTotalPe{0};
+  float hcalTotalPeAbove8PE{0};
   
   ldmx::HcalHit defaultMaxHit_;
   defaultMaxHit_.Clear();
@@ -536,6 +543,9 @@ void CutBasedDM::analyze(const framework::Event& event) {
 
     float pe = hcalHit.getPE();
     hcalTotalPe += pe;
+    if (pe > 8) {
+      hcalTotalPeAbove8PE  += pe;
+    }
 
     if (hcalMaxPE < pe) {
       hcalMaxPE = pe;
@@ -644,7 +654,9 @@ void CutBasedDM::analyze(const framework::Event& event) {
       histograms_.fill("RecoilTheta", i, thetaEleAtTarget );
       histograms_.fill("RecoilPhi", i, phiEleAtTarget );
       histograms_.fill("Hcal_MaxPE", i, hcalMaxPE );
+      histograms_.fill("Hcal_MaxPE_Extended", i, hcalMaxPE );
       histograms_.fill("Hcal_TotalPE", i, hcalTotalPe );
+      histograms_.fill("Hcal_TotalPE_AboveMax8PE", i, hcalTotalPeAbove8PE );
       histograms_.fill("Hcal_MaxTiming", i, hcalMaxTiming );
       histograms_.fill("Hcal_MaxSector", i, hcalMaxSector );
 
@@ -795,11 +807,11 @@ void CutBasedDM::analyze(const framework::Event& event) {
   float recoilZ0{-9999.};
   // Start with tagger tracks
   auto taggerN = taggerTrackCollection.size();
-  //std::cout << " taggerN = " << taggerN << std::endl;
+  // std::cout << " taggerN = " << taggerN << std::endl;
   if (taggerN == 1) {
     for (const auto trk : taggerTrackCollection) {
       auto QoP = trk.getQoP();
-      taggerP = 1000. / abs(QoP);
+      taggerP = 1000. / std::abs(QoP);
     }
   }
 
@@ -820,10 +832,11 @@ void CutBasedDM::analyze(const framework::Event& event) {
   passedCutsArrayTracking[0]  = (acceptance) ? true : false;
   passedCutsArrayTracking[1]  = (ignore_fiducial_analysis_ || (fiducial_analysis_ && vetoNew.getFiducial()) || (!fiducial_analysis_ && !vetoNew.getFiducial())) ? true : false;
   passedCutsArrayTracking[2]  = (trigResult.passed()) ? true : false;
+  // std::cout << " taggerP = " << taggerP << std::endl;
   passedCutsArrayTracking[3]  = (ignore_tagger_analysis_ || (taggerP > 5600)) ? true : false;
   passedCutsArrayTracking[4]  = (recoilN == 1) ? true : false;
-  passedCutsArrayTracking[5]  = (abs(recoilD0) < 10) ? true : false;
-  passedCutsArrayTracking[6]  = (abs(recoilZ0) < 40) ? true : false;
+  passedCutsArrayTracking[5]  = (std::abs(recoilD0) < 10.) ? true : false;
+  passedCutsArrayTracking[6]  = (std::abs(recoilZ0) < 40.) ? true : false;
   passedCutsArrayTracking[7]  = (vetoNew.getDisc() > 0.99741) ? true : false;
   passedCutsArrayTracking[8]  = (vetoNew.getNStraightTracks() < 3) ? true : false;
   passedCutsArrayTracking[9]  = (hcalVeto.passesVeto()) ? true : false;
@@ -833,7 +846,6 @@ void CutBasedDM::analyze(const framework::Event& event) {
   } else {
     passedCutsArrayTracking[11]  = true;
   }
-
 
   for (size_t i=0;i<sizeof(passedCutsArrayTracking);i++) {
     bool allCutsPassedSoFar = true;
@@ -845,6 +857,9 @@ void CutBasedDM::analyze(const framework::Event& event) {
     }
     if (allCutsPassedSoFar) {
       histograms_.fill("TrackingCutFlow_RecoilX", i, vetoNew.getRecoilX() );
+      if (i == (sizeof(passedCutsArrayTracking)-1) && !signal_) {
+        std::cout << " This bkg event survived all the cuts!!!" << std::endl;
+      }
       histograms_.fill("Tracking_TaggerP", i, taggerP);
       histograms_.fill("Tracking_RecoilN", i, recoilN);
       histograms_.fill("Tracking_RecoilD0", i, recoilD0);
@@ -868,8 +883,8 @@ void CutBasedDM::analyze(const framework::Event& event) {
   }
   passedCutsArrayTrackingHcal[7]  = (taggerP > 5600) ? true : false;
   passedCutsArrayTrackingHcal[8]  = (recoilN == 1) ? true : false;
-  passedCutsArrayTrackingHcal[9]  = (abs(recoilD0) < 10) ? true : false;
-  passedCutsArrayTrackingHcal[10]  = (abs(recoilZ0) < 40) ? true : false;
+  passedCutsArrayTrackingHcal[9]  = (std::abs(recoilD0) < 10) ? true : false;
+  passedCutsArrayTrackingHcal[10]  = (std::abs(recoilZ0) < 40) ? true : false;
 
 
   for (size_t i=0;i<sizeof(passedCutsArrayTrackingHcal);i++) {
