@@ -27,7 +27,7 @@ print("Input files = ", p.inputFiles)
 #p.inputFiles = [f'ecalPnIn.root']
 #p.histogramFile = fileName[:-5] + "_histo_v4_nonfid.root"
 #p.histogramFile = "/sdf/group/ldmx/users/tamasvami/CutBasedDM/"  + str(fileName.split('/')[-2]) + "/" + str(fileName.split('/')[-1][:-5]) + "_histo_v16.root"
-p.histogramFile = "/home/vamitamas/CutBasedDM/"  + str(fileName.split('/')[-2]) + "/" + str(fileName.split('/')[-1][:-5]) + "_histo_v17c.root"
+p.histogramFile = "/home/vamitamas/CutBasedDM/"  + str(fileName.split('/')[-2]) + "/" + str(fileName.split('/')[-1][:-5]) + "_histo_v18.root"
 # p.histogramFile  = str(fileName.split('/')[-1][:-5]) + "_histo_v16.root"
 print("Histogram output = ", p.histogramFile)
 
@@ -56,6 +56,10 @@ ecalVeto.recoil_from_tracking = True
 ecalVeto.run_lin_reg = False
 
 # HCAL veto
+# import LDMX.Hcal.HcalGeometry
+# import LDMX.Hcal.hcal_hardcoded_conditions
+# import LDMX.Hcal.digi as hcal_digi
+# hcal_digi_reco = hcal_digi.HcalSimpleDigiAndRecProducer()
 hcalVeto   = hcal.HcalVetoProcessor('hcalVeto')
 
 # Trigger

@@ -30,6 +30,8 @@
 // v15: Acceptance plot, and add Acceptance to all cutflows
 // v16: Add ignore_fiducial_analysis_, move to recoil from tracking
 // v17: Running on resim sample, 17b adding HCAL plots, print out for surviving everything
+// v18: ldmx-sw v4.2.19, adding CnCwithTracking
+
 
 class CutBasedDM : public framework::Analyzer {
 public:
@@ -115,11 +117,11 @@ void CutBasedDM::onProcessStart(){
   histograms_.create("YStd", "", 20, -0.5, 19.5, "Shower RMS_{Y} [mm]", 100, 0.0, 250.0);
   histograms_.create("BDTDiscr", "", 20, -0.5, 19.5, "BDT discriminating score", 100, 0.0, 1.0);
   histograms_.create("BDTDiscrLog", "", 20, -0.5, 19.5, "-log(1-BDT discriminating score)", 100, 0.0, 5.0);
-  
-  histograms_.create("RecoilPT", "", 20, -0.5, 19.5, "Recoil p_{T} [MeV]", 800, 0.0, 10000.0);
+   
+  histograms_.create("RecoilPT", "", 20, -0.5, 19.5, "Recoil p_{T} [MeV]", 200, 0.0, 1000.0);
   histograms_.create("RecoilPZ", "", 20, -0.5, 19.5, "Recoil p_{Z} [MeV]", 800, -10.0, 8010.0);
-  histograms_.create("RecoilP", "", 20, -0.5, 19.5, "Recoil p [MeV]", 800, 0.0, 10000.0);
-  histograms_.create("RecoilPTAtTarget", "", 20, -0.5, 19.5, "Recoil p_{T} @Target [MeV]", 800, 0.0, 10000.0);
+  histograms_.create("RecoilP", "", 20, -0.5, 19.5, "Recoil p [MeV]", 2000, 0.0, 10000.0);
+  histograms_.create("RecoilPTAtTarget", "", 20, -0.5, 19.5, "Recoil p_{T} @Target [MeV]", 400, 0.0, 4000.0);
   histograms_.create("RecoilPZAtTarget", "", 20, -0.5, 19.5, "Recoil p_{Z} @Target [MeV]", 800, -10.0, 8010.0);
   histograms_.create("RecoilPAtTarget", "", 20, -0.5, 19.5, "Recoil p @Target [MeV]", 800, 0.0, 10000.0);
   histograms_.create("RecoilTheta", "", 20, -0.5, 19.5, "Recoil theta @Target", 90, 0.0, 90.0);
@@ -140,6 +142,7 @@ void CutBasedDM::onProcessStart(){
 
   histograms_.create("AltCutFlow_RecoilX", "", 18, -0.5, 17.5, "RecoilX @Ecal [mm]", 90, -450.0, 450.0);
   histograms_.create("StdCutFlow_RecoilX", "", 18, -0.5, 17.5, "RecoilX @Ecal [mm]", 90, -450.0, 450.0);
+  histograms_.create("StdCutFlowWithTracking_RecoilX", "", 20, -0.5, 19.5, "RecoilX @Ecal [mm]", 90, -450.0, 450.0);
   histograms_.create("BDTCutFlow_RecoilX", "", 18, -0.5, 17.5, "RecoilX @Ecal [mm]", 90, -450.0, 450.0);
   // histograms_.create("LinRegCutFlow_RecoilX", "",  18, -0.5, 17.5, "RecoilX @Ecal [mm]", 90, -450.0, 450.0);
   // histograms_.create("LinRegCutFlowHcal_RecoilX", "",  18, -0.5, 17.5, "RecoilX @Ecal [mm]", 90, -450.0, 450.0);
@@ -147,10 +150,12 @@ void CutBasedDM::onProcessStart(){
   histograms_.create("TrackingCutFlow_RecoilX", "", 18, -0.5, 17.5, "RecoilX @Ecal [mm]", 90, -450.0, 450.0);
   histograms_.create("Tracking_TaggerP", "", 18, -0.5, 17.5, "Tagger p [MeV]", 800, 0.0, 10000.0);
   histograms_.create("Tracking_RecoilN", "", 18, -0.5, 17.5, "N_{recoil}", 10, -0.5, 9.5);
+  histograms_.create("Tracking_RecoilP", "", 18, -0.5, 17.5, "Recoil p [MeV]", 2000, 0.0, 10000.0);
+  histograms_.create("Tracking_RecoilPt", "", 18, -0.5, 17.5, "Recoil p_{T} [MeV]", 200, 0.0, 1000.0);
   histograms_.create("Tracking_RecoilD0", "", 18, -0.5, 17.5, "d_{0} [mm]", 100, -50.0, 50.0);
   histograms_.create("Tracking_RecoilZ0", "", 18, -0.5, 17.5, "z_{0} [mm]", 100, -50.0, 50.0);
   histograms_.create("TrackingCutFlowHcal_RecoilX", "", 18, -0.5, 17.5, "RecoilX @Ecal [mm]", 90, -450.0, 450.0);
-  histograms_.create("TrackingHcal_TaggerP", "", 18, -0.5, 17.5, "Tagger p [MeV]", 800, 0.0, 10000.0);
+  histograms_.create("TrackingHcal_TaggerP", "", 18, -0.5, 17.5, "Tagger p [MeV]", 2000, 0.0, 10000.0);
   histograms_.create("TrackingHcal_RecoilN", "", 18, -0.5, 17.5, "N_{recoil}", 10, -0.5, 9.5);
   histograms_.create("TrackingHcal_RecoilD0", "", 18, -0.5, 17.5, "d_{0} [mm]", 100, -50.0, 50.0);
   histograms_.create("TrackingHcal_RecoilZ0", "", 18, -0.5, 17.5, "z_{0} [mm]", 100, -50.0, 50.0);
@@ -262,6 +267,31 @@ void CutBasedDM::onProcessStart(){
   // setHistLabels("N1_Hcal_MaxPE", labels);
   // setHistLabels("N1_Hcal_MaxTiming", labels);
   // setHistLabels("N1_Hcal_MaxSector", labels);
+
+  std::vector<std::string> labelsWithTracking = {
+    "All / Acceptance",
+    "Fiducial",              // 1
+    "Triggerred",            // 2
+    "p_{tagger} > 5600",     //
+    "N_{recoil} = 1",
+    "|d_{0}| < 10",
+    "|z_{0}| < 40",
+    "E_{sum} < 3500",        //
+    "E_{SumTight} < 800",        // 4
+    "E_{back} < 250",             // 5
+    "N_{hits} < 70",              // 6
+    "RMS_{shower} < 110",         // 7
+    "RMS_{shower,Y} < 70",        // 8
+    "E_{cell,max} < 300",         // 9
+    "RMS_{Layer,hit} < 5",        // 10
+    "N_{straight} < 3",           // 11
+    "PE_{HCal,max} < 8",            // 12
+    "N_{straight} = 0",           //
+    };
+    
+  if (!fiducial_analysis_) labelsWithTracking.at(1) = "Non-fiducial";
+
+  setHistLabels("StdCutFlowWithTracking_RecoilX", labelsWithTracking);
   
   std::vector<std::string> labels_Rev = {
     "All / Acceptance",      // 0
@@ -412,6 +442,8 @@ void CutBasedDM::onProcessStart(){
   setHistLabels("TrackingCutFlow_RecoilX",labels_TrackingCutFlow);
   setHistLabels("Tracking_TaggerP",labels_TrackingCutFlow);
   setHistLabels("Tracking_RecoilN",labels_TrackingCutFlow);
+  setHistLabels("Tracking_RecoilP",labels_TrackingCutFlow);
+  setHistLabels("Tracking_RecoilPt",labels_TrackingCutFlow);
   setHistLabels("Tracking_RecoilD0",labels_TrackingCutFlow);
   setHistLabels("Tracking_RecoilZ0",labels_TrackingCutFlow);
 
@@ -802,9 +834,6 @@ void CutBasedDM::analyze(const framework::Event& event) {
   // Calculate tracking variables if tracking is available
   //std::cout << " Tracking variables = " << std::endl;
   float taggerP{0.0}; // Make sure this is in MeV!!
-  int recoilN{0};
-  float recoilD0{-9999.};
-  float recoilZ0{-9999.};
   // Start with tagger tracks
   auto taggerN = taggerTrackCollection.size();
   // std::cout << " taggerN = " << taggerN << std::endl;
@@ -816,23 +845,67 @@ void CutBasedDM::analyze(const framework::Event& event) {
   }
 
   // Recoil tracks now
-  recoilN = recoilTrackCollection.size();
+  float recoilP{0.0}; // Make sure this is in MeV!!
+  float recoilPt{0.0}; // Make sure this is in MeV!!
+  float recoilD0{-9999.};
+  float recoilZ0{-9999.};
+  auto recoilN = recoilTrackCollection.size();
   //std::cout << " recoilN = " << recoilN << std::endl;
   if (recoilN == 1) {
     for (const auto trk : recoilTrackCollection) {
       recoilD0 = trk.getD0();
       recoilZ0 = trk.getZ0();
+      auto QoP = trk.getQoP();
+      recoilP = 1000. / std::abs(QoP);
+      auto trk_mom = trk.getMomentum();
+      recoilPt = 1000 * std::sqrt(trk_mom[1] * trk_mom[1] + trk_mom[2] * trk_mom[2]);
     }
   }
 
   // --------------------------------------------------------------------------
+  // CnC based cutFlow with tracking
+  // CutFlow here
+  bool passedCutsArrayCnCWithTracking[18];
+  //std::cout << " CnC cutflow = " << std::endl;
+  std::fill(std::begin(passedCutsArrayCnCWithTracking), std::end(passedCutsArrayCnCWithTracking),false);
+  passedCutsArrayCnCWithTracking[0]  = (acceptance) ? true : false;
+  passedCutsArrayCnCWithTracking[1]  = (ignore_fiducial_analysis_ || (fiducial_analysis_ && vetoNew.getFiducial()) || (!fiducial_analysis_ && !vetoNew.getFiducial())) ? true : false;
+  passedCutsArrayCnCWithTracking[2]  = (trigResult.passed()) ? true : false;
+  passedCutsArrayCnCWithTracking[3]  = (ignore_tagger_analysis_ || (taggerP > 5600)) ? true : false;
+  passedCutsArrayCnCWithTracking[4]  = (recoilN == 1) ? true : false;
+  passedCutsArrayCnCWithTracking[5]  = (std::abs(recoilD0) < 10.) ? true : false;
+  passedCutsArrayCnCWithTracking[6]  = (std::abs(recoilZ0) < 40.) ? true : false; 
+  passedCutsArrayCnCWithTracking[7]  = (vetoNew.getSummedDet() < 3500) ? true : false;
+  passedCutsArrayCnCWithTracking[8]  = (vetoNew.getSummedTightIso() < 800) ? true : false;
+  passedCutsArrayCnCWithTracking[9]  = (vetoNew.getEcalBackEnergy() < 250) ? true : false;
+  passedCutsArrayCnCWithTracking[10]  = (vetoNew.getNReadoutHits() < 70) ? true : false;
+  passedCutsArrayCnCWithTracking[11]  = (vetoNew.getShowerRMS() < 110) ? true : false;
+  passedCutsArrayCnCWithTracking[12]  = (vetoNew.getYStd() < 70) ? true : false;
+  passedCutsArrayCnCWithTracking[13]  = (vetoNew.getMaxCellDep() < 300) ? true : false;
+  passedCutsArrayCnCWithTracking[14]  = (vetoNew.getStdLayerHit() < 5) ? true : false;
+  passedCutsArrayCnCWithTracking[15]  = (vetoNew.getNStraightTracks() < 3) ? true : false;
+  passedCutsArrayCnCWithTracking[16]  = (hcalVeto.passesVeto()) ? true : false;
+  passedCutsArrayCnCWithTracking[17]  = (vetoNew.getNStraightTracks() == 0) ? true : false;
+
+  for (size_t i=0;i<sizeof(passedCutsArrayCnCWithTracking);i++) {
+    bool allCutsPassedSoFar = true;
+    for (size_t j=0;j<=i;j++) {
+      if (!passedCutsArrayCnCWithTracking[j]) {
+        allCutsPassedSoFar = false;
+        break;
+      }
+    }
+    if (allCutsPassedSoFar) {
+      histograms_.fill("StdCutFlowWithTracking_RecoilX", i, vetoNew.getRecoilX() );
+    }
+  }
+
   // BDT based cutFlow with tracking
   bool passedCutsArrayTracking[12];
   std::fill(std::begin(passedCutsArrayTracking), std::end(passedCutsArrayTracking),false);
   passedCutsArrayTracking[0]  = (acceptance) ? true : false;
   passedCutsArrayTracking[1]  = (ignore_fiducial_analysis_ || (fiducial_analysis_ && vetoNew.getFiducial()) || (!fiducial_analysis_ && !vetoNew.getFiducial())) ? true : false;
   passedCutsArrayTracking[2]  = (trigResult.passed()) ? true : false;
-  // std::cout << " taggerP = " << taggerP << std::endl;
   passedCutsArrayTracking[3]  = (ignore_tagger_analysis_ || (taggerP > 5600)) ? true : false;
   passedCutsArrayTracking[4]  = (recoilN == 1) ? true : false;
   passedCutsArrayTracking[5]  = (std::abs(recoilD0) < 10.) ? true : false;
@@ -862,6 +935,8 @@ void CutBasedDM::analyze(const framework::Event& event) {
       }
       histograms_.fill("Tracking_TaggerP", i, taggerP);
       histograms_.fill("Tracking_RecoilN", i, recoilN);
+      histograms_.fill("Tracking_RecoilP", i, recoilP);
+      histograms_.fill("Tracking_RecoilPt", i, recoilPt);
       histograms_.fill("Tracking_RecoilD0", i, recoilD0);
       histograms_.fill("Tracking_RecoilZ0", i, recoilZ0);
     }
